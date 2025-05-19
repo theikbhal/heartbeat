@@ -1,103 +1,102 @@
-import Image from "next/image";
+import Link from 'next/link'
 
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="space-y-16">
+      {/* Hero Section */}
+      <section className="text-center space-y-8 py-20">
+        <h1 className="text-5xl font-bold text-gray-900">
+          Organize Your Thoughts,<br />
+          <span className="text-blue-600">Achieve Your Goals</span>
+        </h1>
+        <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          Heartbeat helps you visualize ideas, manage tasks, and collaborate effectively with an intuitive mind mapping platform.
+        </p>
+        <div className="flex gap-4 justify-center">
+          <Link 
+            href="/signup" 
+            className="bg-blue-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-blue-700 transition"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Get Started Free
+          </Link>
+          <Link 
+            href="/demo" 
+            className="border border-gray-300 px-8 py-3 rounded-lg font-medium hover:bg-gray-50 transition"
           >
-            Read our docs
-          </a>
+            Watch Demo
+          </Link>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </section>
+
+      {/* Features Section */}
+      <section className="grid md:grid-cols-3 gap-8 py-16">
+        <div className="p-6 bg-white rounded-xl shadow-sm">
+          <h3 className="text-xl font-semibold mb-4">Mind Mapping</h3>
+          <p className="text-gray-600">Create interactive mind maps with drag-and-drop functionality and real-time collaboration.</p>
+        </div>
+        <div className="p-6 bg-white rounded-xl shadow-sm">
+          <h3 className="text-xl font-semibold mb-4">Task Management</h3>
+          <p className="text-gray-600">Organize tasks with nested checklists, progress tracking, and priority levels.</p>
+        </div>
+        <div className="p-6 bg-white rounded-xl shadow-sm">
+          <h3 className="text-xl font-semibold mb-4">Media Integration</h3>
+          <p className="text-gray-600">Embed videos, attach images, and link documents to enhance your mind maps.</p>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section className="text-center py-16">
+        <h2 className="text-3xl font-bold mb-8">Simple, Transparent Pricing</h2>
+        <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="p-6 bg-white rounded-xl shadow-sm">
+            <h3 className="text-xl font-semibold mb-2">Basic</h3>
+            <p className="text-3xl font-bold mb-4">$10<span className="text-lg text-gray-600">/month</span></p>
+            <ul className="text-left space-y-2 mb-6">
+              <li>✓ Basic mind mapping</li>
+              <li>✓ Task management</li>
+              <li>✓ Video embedding</li>
+            </ul>
+            <Link 
+              href="/signup?plan=basic" 
+              className="block w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+            >
+              Get Started
+            </Link>
+          </div>
+          <div className="p-6 bg-white rounded-xl shadow-sm border-2 border-blue-600">
+            <h3 className="text-xl font-semibold mb-2">Pro</h3>
+            <p className="text-3xl font-bold mb-4">$25<span className="text-lg text-gray-600">/month</span></p>
+            <ul className="text-left space-y-2 mb-6">
+              <li>✓ Everything in Basic</li>
+              <li>✓ Advanced collaboration</li>
+              <li>✓ Priority support</li>
+              <li>✓ Mobile access</li>
+            </ul>
+            <Link 
+              href="/signup?plan=pro" 
+              className="block w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+            >
+              Get Started
+            </Link>
+          </div>
+          <div className="p-6 bg-white rounded-xl shadow-sm">
+            <h3 className="text-xl font-semibold mb-2">Lifetime</h3>
+            <p className="text-3xl font-bold mb-4">₹5,000</p>
+            <ul className="text-left space-y-2 mb-6">
+              <li>✓ Everything in Pro</li>
+              <li>✓ Lifetime access</li>
+              <li>✓ Future updates</li>
+              <li>✓ Premium support</li>
+            </ul>
+            <Link 
+              href="/signup?plan=lifetime" 
+              className="block w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+            >
+              Get Started
+            </Link>
+          </div>
+        </div>
+      </section>
     </div>
-  );
+  )
 }
