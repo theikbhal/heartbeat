@@ -22,6 +22,12 @@ export default function Home() {
           </Link>
           <Link 
             href="/demo" 
+            className="border border-blue-600 text-blue-600 px-8 py-3 rounded-lg font-medium hover:bg-blue-50 transition"
+          >
+            Try Demo
+          </Link>
+          <Link 
+            href="/demo" 
             className="border border-gray-300 px-8 py-3 rounded-lg font-medium hover:bg-gray-50 transition"
           >
             Watch Demo
