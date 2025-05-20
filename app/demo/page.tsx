@@ -167,10 +167,27 @@ export default function DemoPage() {
           }}
           onClick={() => setSelectedId(node.id)}
         >
-          {node.text} {node.children.length > 0 && (
-            <span style={{ fontSize: 12, color: "#888" }}>
-              [{node.collapsed ? "+" : "-"}]
-            </span>
+          {mode === "edit" && isSelected ? (
+            <input
+              ref={inputRef}
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              className="border px-2 py-1 rounded"
+              style={{ color: "#111", fontWeight: "bold" }}
+              onBlur={() => setMode("command")}
+              onKeyDown={e => {
+                if (e.key === "Escape") setMode("command");
+              }}
+              onClick={e => e.stopPropagation()}
+            />
+          ) : (
+            <>
+              {node.text} {node.children.length > 0 && (
+                <span style={{ fontSize: 12, color: "#888" }}>
+                  [{node.collapsed ? "+" : "-"}]
+                </span>
+              )}
+            </>
           )}
         </div>
         {!node.collapsed && node.children.map(renderNode)}
@@ -191,17 +208,6 @@ export default function DemoPage() {
           <li><b>f</b>: Find</li>
           <li><b>Arrow Up/Down</b>: Traverse nodes</li>
         </ul>
-        {mode === "edit" ? (
-          <form onSubmit={handleEditSubmit} className="mb-4">
-            <input
-              ref={inputRef}
-              value={editText}
-              onChange={e => setEditText(e.target.value)}
-              className="border px-2 py-1 rounded w-full"
-              onBlur={() => setMode("command")}
-            />
-          </form>
-        ) : null}
         <div>{renderNode(tree)}</div>
         {search && <div className="mt-4 text-xs text-gray-500">Searching for: <b>{search}</b></div>}
       </div>
