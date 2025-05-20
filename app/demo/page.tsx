@@ -103,6 +103,7 @@ export default function DemoPage() {
         return;
       }
       if (e.key === "i") {
+        e.preventDefault(); // Prevent 'i' from being added to the node text
         setMode("edit");
         const node = findNodeById(tree, selectedId)?.node;
         setEditText(node?.text || "");
@@ -226,7 +227,6 @@ export default function DemoPage() {
               }}
               onKeyDown={e => {
                 if (e.key === "Escape") {
-                  // Discard changes
                   setEditText(findNodeById(tree, selectedId)?.node.text || "");
                   setMode("command");
                 } else if (e.key === "Enter") {
@@ -256,21 +256,22 @@ export default function DemoPage() {
                   });
                 } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                   e.preventDefault();
-                  // Save and move selection
+                  let nextId = selectedId;
                   setTree((oldTree) => {
                     const copy = structuredClone(oldTree);
                     const found = findNodeById(copy, selectedId);
                     if (found) found.node.text = editText;
+                    // After saving, get the new flat tree and move selection
+                    const flat = flattenTree(copy);
+                    const idx = flat.findIndex((n) => n.id === selectedId);
+                    let nextIdx = idx;
+                    if (e.key === "ArrowDown" && idx < flat.length - 1) nextIdx = idx + 1;
+                    if (e.key === "ArrowUp" && idx > 0) nextIdx = idx - 1;
+                    nextId = flat[nextIdx].id;
                     return copy;
                   });
                   setMode("command");
-                  // Move selection
-                  const flat = flattenTree(tree);
-                  const idx = flat.findIndex((n) => n.id === selectedId);
-                  let nextIdx = idx;
-                  if (e.key === "ArrowDown" && idx < flat.length - 1) nextIdx = idx + 1;
-                  if (e.key === "ArrowUp" && idx > 0) nextIdx = idx - 1;
-                  setSelectedId(flat[nextIdx].id);
+                  setTimeout(() => setSelectedId(nextId), 0);
                 }
               }}
               onClick={e => e.stopPropagation()}
