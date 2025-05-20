@@ -55,6 +55,7 @@ function HelpCard({ onClose }: { onClose: () => void }) {
           <li><b>f</b>: Find</li>
           <li><b>Arrow Up/Down</b>: Traverse nodes</li>
           <li><b>Enter (in edit)</b>: Save & add sibling</li>
+          <li><b>d</b>: Delete current node</li>
         </ul>
       </div>
     </div>
@@ -159,6 +160,28 @@ export default function DemoPage() {
         if (e.key === "ArrowDown" && idx < flat.length - 1) nextIdx = idx + 1;
         if (e.key === "ArrowUp" && idx > 0) nextIdx = idx - 1;
         setSelectedId(flat[nextIdx].id);
+        return;
+      }
+      if (e.key === "d") {
+        // Delete current node (except root)
+        if (selectedId === "root") return;
+        setTree((oldTree) => {
+          const copy = structuredClone(oldTree);
+          const found = findNodeById(copy, selectedId);
+          if (!found || !found.parent) return copy;
+          const parent = found.parent;
+          const idx = parent.children.findIndex((n) => n.id === selectedId);
+          parent.children.splice(idx, 1);
+          // Select previous sibling, next sibling, or parent
+          if (parent.children[idx - 1]) {
+            setSelectedId(parent.children[idx - 1].id);
+          } else if (parent.children[idx]) {
+            setSelectedId(parent.children[idx].id);
+          } else {
+            setSelectedId(parent.id);
+          }
+          return copy;
+        });
         return;
       }
     }
