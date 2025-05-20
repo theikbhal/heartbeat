@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import * as SibApiV3Sdk from '@getbrevo/brevo';
-require('dotenv').config(); // convert to import format
-// ...rest of the code
+import dotenv from 'dotenv';
+dotenv.config();
 
 const apiInstance = new SibApiV3Sdk.ContactsApi();
 apiInstance.setApiKey(SibApiV3Sdk.ContactsApiApiKeys.apiKey, process.env.BREVO_API_KEY || '');
