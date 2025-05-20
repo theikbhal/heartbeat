@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { EmailSubscribe } from './components/EmailSubscribe'
 
 export default function Home() {
   return (
@@ -28,19 +29,61 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="grid md:grid-cols-3 gap-8 py-16">
-        <div className="p-6 bg-white rounded-xl shadow-sm">
-          <h3 className="text-xl font-semibold mb-4">Mind Mapping</h3>
-          <p className="text-gray-600">Create interactive mind maps with drag-and-drop functionality and real-time collaboration.</p>
+      {/* Enhanced Features Section */}
+      <section className="py-16">
+        <h2 className="text-3xl font-bold text-center mb-12">Powerful Features Across All Platforms</h2>
+        <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+          <div className="space-y-8">
+            <div className="p-6 bg-white rounded-xl shadow-sm">
+              <h3 className="text-xl font-semibold mb-4">Mind Mapping</h3>
+              <ul className="space-y-2 text-gray-600">
+                <li>• Interactive node-based interface</li>
+                <li>• Drag-and-drop functionality</li>
+                <li>• Real-time collaboration</li>
+                <li>• Export/Import capabilities</li>
+              </ul>
+            </div>
+            <div className="p-6 bg-white rounded-xl shadow-sm">
+              <h3 className="text-xl font-semibold mb-4">Workflowy View</h3>
+              <ul className="space-y-2 text-gray-600">
+                <li>• Infinite nested lists</li>
+                <li>• Expandable/collapsible nodes</li>
+                <li>• Keyboard shortcuts</li>
+                <li>• Quick search and filter</li>
+              </ul>
+            </div>
+          </div>
+          <div className="space-y-8">
+            <div className="p-6 bg-white rounded-xl shadow-sm">
+              <h3 className="text-xl font-semibold mb-4">Task Management</h3>
+              <ul className="space-y-2 text-gray-600">
+                <li>• Nested checklists</li>
+                <li>• Progress tracking</li>
+                <li>• Due dates and reminders</li>
+                <li>• Priority levels</li>
+              </ul>
+            </div>
+            <div className="p-6 bg-white rounded-xl shadow-sm">
+              <h3 className="text-xl font-semibold mb-4">Cross-Platform Support</h3>
+              <ul className="space-y-2 text-gray-600">
+                <li>• Web Application (All Users)</li>
+                <li>• Android App (Pro Users)</li>
+                <li>• iOS App (Pro Users)</li>
+                <li>• Offline Support</li>
+              </ul>
+            </div>
+          </div>
         </div>
-        <div className="p-6 bg-white rounded-xl shadow-sm">
-          <h3 className="text-xl font-semibold mb-4">Task Management</h3>
-          <p className="text-gray-600">Organize tasks with nested checklists, progress tracking, and priority levels.</p>
-        </div>
-        <div className="p-6 bg-white rounded-xl shadow-sm">
-          <h3 className="text-xl font-semibold mb-4">Media Integration</h3>
-          <p className="text-gray-600">Embed videos, attach images, and link documents to enhance your mind maps.</p>
+      </section>
+
+      {/* Email Collection Section */}
+      <section className="py-16 bg-blue-50">
+        <div className="max-w-2xl mx-auto text-center">
+          <h2 className="text-3xl font-bold mb-4">Stay Updated</h2>
+          <p className="text-gray-600 mb-8">
+            Get early access to new features and updates. We'll notify you when our mobile apps are ready!
+          </p>
+          <EmailSubscribe />
         </div>
       </section>
 
