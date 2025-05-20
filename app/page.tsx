@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { EmailSubscribe } from './components/EmailSubscribe'
+import { AuthProvider, useAuth } from './components/AuthProvider'
 
-export default function Home() {
+function HomeContent() {
+  const { user } = useAuth();
   return (
     <div className="space-y-16">
       {/* Hero Section */}
@@ -32,6 +34,22 @@ export default function Home() {
           >
             Watch Demo
           </Link>
+          {!user && (
+            <>
+              <Link 
+                href="/login" 
+                className="border border-gray-300 px-8 py-3 rounded-lg font-medium hover:bg-gray-50 transition"
+              >
+                Login
+              </Link>
+              <Link 
+                href="/register" 
+                className="border border-blue-600 text-blue-600 px-8 py-3 rounded-lg font-medium hover:bg-blue-50 transition"
+              >
+                Register
+              </Link>
+            </>
+          )}
         </div>
       </section>
 
@@ -148,4 +166,12 @@ export default function Home() {
       </section>
     </div>
   )
+}
+
+export default function Home() {
+  return (
+    <AuthProvider>
+      <HomeContent />
+    </AuthProvider>
+  );
 }
