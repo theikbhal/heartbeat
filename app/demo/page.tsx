@@ -1,5 +1,10 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import React from "react";
+
+const LOCAL_STORAGE_KEY = "mindmap-demo-tree";
+const API_URL = "https://tawhid.in/tiny/heartbeat/api.php";
+const API_FILENAME = "demo";
 
 // Node type
 type Node = {
@@ -62,6 +67,119 @@ function HelpCard({ onClose }: { onClose: () => void }) {
   );
 }
 
+function exportToMarkdown(node: Node, depth = 0): string {
+  let md = `${"  ".repeat(depth)}- ${node.text}\n`;
+  for (const child of node.children) {
+    md += exportToMarkdown(child, depth + 1);
+  }
+  return md;
+}
+
+function exportToTabText(node: Node, depth = 0): string {
+  let txt = `${"\t".repeat(depth)}${node.text}\n`;
+  for (const child of node.children) {
+    txt += exportToTabText(child, depth + 1);
+  }
+  return txt;
+}
+
+function ExportModal({ tree, onClose }: { tree: Node; onClose: () => void }) {
+  const [tab, setTab] = useState<'json' | 'markdown' | 'tab'>('json');
+  let content = '';
+  if (tab === 'json') content = JSON.stringify(tree, null, 2);
+  if (tab === 'markdown') content = exportToMarkdown(tree);
+  if (tab === 'tab') content = exportToTabText(tree);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(content);
+  }
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-30">
+      <div className="bg-white rounded-xl shadow-lg p-6 max-w-2xl w-full relative">
+        <button
+          onClick={onClose}
+          className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-xl font-bold"
+          aria-label="Close export"
+        >×</button>
+        <h2 className="text-xl font-bold mb-4 text-black">Export Mindmap</h2>
+        <div className="flex gap-2 mb-4">
+          <button className={`px-3 py-1 rounded ${tab === 'json' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`} onClick={() => setTab('json')}>JSON</button>
+          <button className={`px-3 py-1 rounded ${tab === 'markdown' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`} onClick={() => setTab('markdown')}>Markdown</button>
+          <button className={`px-3 py-1 rounded ${tab === 'tab' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`} onClick={() => setTab('tab')}>Tab-indented</button>
+        </div>
+        <textarea
+          className="w-full h-64 border rounded p-2 text-xs font-mono mb-2 text-black"
+          value={content}
+          readOnly
+        />
+        <button onClick={handleCopy} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Copy</button>
+      </div>
+    </div>
+  );
+}
+
+function parseTabText(text: string): Node {
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  const root: Node = { id: generateId(), text: lines[0]?.trim() || "Root", children: [] };
+  const stack: { node: Node; depth: number }[] = [{ node: root, depth: 0 }];
+  for (let i = 1; i < lines.length; ++i) {
+    const line = lines[i];
+    const depth = line.match(/^\t*/)?.[0].length || 0;
+    const node: Node = { id: generateId(), text: line.trim(), children: [] };
+    while (stack.length && stack[stack.length - 1].depth >= depth) stack.pop();
+    stack[stack.length - 1].node.children.push(node);
+    stack.push({ node, depth });
+  }
+  return root;
+}
+
+function ImportModal({ onImport, onClose }: { onImport: (tree: Node) => void; onClose: () => void }) {
+  const [tab, setTab] = useState<'json' | 'tab'>('json');
+  const [input, setInput] = useState('');
+  const [error, setError] = useState('');
+
+  function handleImport() {
+    try {
+      let tree: Node;
+      if (tab === 'json') {
+        tree = JSON.parse(input);
+      } else {
+        tree = parseTabText(input);
+      }
+      onImport(tree);
+      onClose();
+    } catch (e) {
+      setError('Invalid input!');
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-30">
+      <div className="bg-white rounded-xl shadow-lg p-6 max-w-2xl w-full relative">
+        <button
+          onClick={onClose}
+          className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-xl font-bold"
+          aria-label="Close import"
+        >×</button>
+        <h2 className="text-xl font-bold mb-4 text-black">Import Mindmap</h2>
+        <div className="flex gap-2 mb-4">
+          <button className={`px-3 py-1 rounded ${tab === 'json' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`} onClick={() => setTab('json')}>JSON</button>
+          <button className={`px-3 py-1 rounded ${tab === 'tab' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`} onClick={() => setTab('tab')}>Tab-indented</button>
+        </div>
+        <textarea
+          className="w-full h-64 border rounded p-2 text-xs font-mono mb-2 text-black"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder={tab === 'json' ? '{ "id": ..., "text": ... }' : 'Root\n\tChild 1\n\tChild 2'}
+        />
+        {error && <div className="text-red-600 mb-2">{error}</div>}
+        <button onClick={handleImport} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Import</button>
+      </div>
+    </div>
+  );
+}
+
 export default function DemoPage() {
   const [tree, setTree] = useState<Node>({
     id: "root",
@@ -86,6 +204,42 @@ export default function DemoPage() {
   const [search, setSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+
+  // Load from API on mount
+  useEffect(() => {
+    fetch(`${API_URL}?filename=${API_FILENAME}&action=get`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data.id && data.text) {
+          setTree(data);
+        } else {
+          // fallback to localStorage
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) {
+            try { setTree(JSON.parse(saved)); } catch {}
+          }
+        }
+      })
+      .catch(() => {
+        // fallback to localStorage
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+          try { setTree(JSON.parse(saved)); } catch {}
+        }
+      });
+  }, []);
+
+  // Save to API and localStorage on every tree change
+  useEffect(() => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(tree));
+    fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: API_FILENAME, data: tree })
+    });
+  }, [tree]);
 
   // Focus input in edit mode
   useEffect(() => {
@@ -303,6 +457,24 @@ export default function DemoPage() {
           ?
         </button>
         {showHelp && <HelpCard onClose={() => setShowHelp(false)} />}
+        {/* Export icon */}
+        <button
+          className="absolute top-4 right-16 bg-green-100 hover:bg-green-200 text-green-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
+          onClick={() => setShowExport(true)}
+          aria-label="Export mindmap"
+        >
+          &#8681;
+        </button>
+        {showExport && <ExportModal tree={tree} onClose={() => setShowExport(false)} />}
+        {/* Import icon */}
+        <button
+          className="absolute top-4 right-28 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
+          onClick={() => setShowImport(true)}
+          aria-label="Import mindmap"
+        >
+          &#8682;
+        </button>
+        {showImport && <ImportModal onImport={setTree} onClose={() => setShowImport(false)} />}
         <h1 className="text-2xl font-bold mb-4 text-black">Mindmap Demo (Keyboard Driven)</h1>
         <div>{renderNode(tree)}</div>
         {search && <div className="mt-4 text-xs text-gray-500">Searching for: <b>{search}</b></div>}
