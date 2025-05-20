@@ -34,6 +34,33 @@ function flattenTree(tree: Node): Node[] {
   return result;
 }
 
+function HelpCard({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-30">
+      <div className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full relative">
+        <button
+          onClick={onClose}
+          className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-xl font-bold"
+          aria-label="Close help"
+        >
+          ×
+        </button>
+        <h2 className="text-xl font-bold mb-4 text-black">Keyboard Shortcuts</h2>
+        <ul className="mb-2 text-sm text-gray-700">
+          <li><b>esc</b>: Command mode (cancel edit)</li>
+          <li><b>i</b>: Edit node</li>
+          <li><b>s</b>: Add sibling</li>
+          <li><b>c</b>: Add child</li>
+          <li><b>t</b>: Toggle collapse/expand</li>
+          <li><b>f</b>: Find</li>
+          <li><b>Arrow Up/Down</b>: Traverse nodes</li>
+          <li><b>Enter (in edit)</b>: Save & add sibling</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 export default function DemoPage() {
   const [tree, setTree] = useState<Node>({
     id: "root",
@@ -57,6 +84,7 @@ export default function DemoPage() {
   const [editText, setEditText] = useState("");
   const [search, setSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   // Focus input in edit mode
   useEffect(() => {
@@ -138,6 +166,12 @@ export default function DemoPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [mode, selectedId, tree, search]);
 
+  // Edit mode logic
+  function startEdit(node: Node) {
+    setEditText(node.text);
+    setMode("edit");
+  }
+
   // Render tree recursively
   function renderNode(node: Node) {
     const isSelected = node.id === selectedId;
@@ -163,9 +197,46 @@ export default function DemoPage() {
               onChange={e => setEditText(e.target.value)}
               className="border px-2 py-1 rounded"
               style={{ color: "#111", fontWeight: "bold" }}
-              onBlur={() => setMode("command")}
+              onBlur={() => {
+                setTree((oldTree) => {
+                  const copy = structuredClone(oldTree);
+                  const found = findNodeById(copy, selectedId);
+                  if (found) found.node.text = editText;
+                  return copy;
+                });
+                setMode("command");
+              }}
               onKeyDown={e => {
-                if (e.key === "Escape") setMode("command");
+                if (e.key === "Escape") {
+                  // Discard changes
+                  setEditText(findNodeById(tree, selectedId)?.node.text || "");
+                  setMode("command");
+                } else if (e.key === "Enter") {
+                  // Save and create sibling
+                  setTree((oldTree) => {
+                    const copy = structuredClone(oldTree);
+                    const found = findNodeById(copy, selectedId);
+                    if (found) found.node.text = editText;
+                    // Add sibling
+                    if (found && found.parent) {
+                      const idx = found.parent.children.findIndex((n) => n.id === selectedId);
+                      const newId = generateId();
+                      found.parent.children.splice(idx + 1, 0, {
+                        id: newId,
+                        text: "New Sibling",
+                        children: [],
+                      });
+                      setTimeout(() => {
+                        setSelectedId(newId);
+                        setEditText("New Sibling");
+                        setMode("edit");
+                      }, 0);
+                    } else {
+                      setMode("command");
+                    }
+                    return copy;
+                  });
+                }
               }}
               onClick={e => e.stopPropagation()}
             />
@@ -186,17 +257,17 @@ export default function DemoPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-10">
-      <div className="max-w-2xl mx-auto bg-white rounded-xl shadow p-6">
+      <div className="max-w-2xl mx-auto bg-white rounded-xl shadow p-6 relative">
+        {/* Help icon */}
+        <button
+          className="absolute top-4 right-4 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
+          onClick={() => setShowHelp(true)}
+          aria-label="Show help"
+        >
+          ?
+        </button>
+        {showHelp && <HelpCard onClose={() => setShowHelp(false)} />}
         <h1 className="text-2xl font-bold mb-4 text-black">Mindmap Demo (Keyboard Driven)</h1>
-        <ul className="mb-4 text-sm text-gray-600">
-          <li><b>esc</b>: Command mode</li>
-          <li><b>i</b>: Edit node</li>
-          <li><b>s</b>: Add sibling</li>
-          <li><b>c</b>: Add child</li>
-          <li><b>t</b>: Toggle collapse/expand</li>
-          <li><b>f</b>: Find</li>
-          <li><b>Arrow Up/Down</b>: Traverse nodes</li>
-        </ul>
         <div>{renderNode(tree)}</div>
         {search && <div className="mt-4 text-xs text-gray-500">Searching for: <b>{search}</b></div>}
       </div>
