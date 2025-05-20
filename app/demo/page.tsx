@@ -254,6 +254,23 @@ export default function DemoPage() {
                     }
                     return copy;
                   });
+                } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  // Save and move selection
+                  setTree((oldTree) => {
+                    const copy = structuredClone(oldTree);
+                    const found = findNodeById(copy, selectedId);
+                    if (found) found.node.text = editText;
+                    return copy;
+                  });
+                  setMode("command");
+                  // Move selection
+                  const flat = flattenTree(tree);
+                  const idx = flat.findIndex((n) => n.id === selectedId);
+                  let nextIdx = idx;
+                  if (e.key === "ArrowDown" && idx < flat.length - 1) nextIdx = idx + 1;
+                  if (e.key === "ArrowUp" && idx > 0) nextIdx = idx - 1;
+                  setSelectedId(flat[nextIdx].id);
                 }
               }}
               onClick={e => e.stopPropagation()}
