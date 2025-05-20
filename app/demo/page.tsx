@@ -166,11 +166,6 @@ export default function DemoPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [mode, selectedId, tree, search]);
 
-  // Edit mode logic
-  function startEdit(node: Node) {
-    setEditText(node.text);
-    setMode("edit");
-  }
 
   // Render tree recursively
   function renderNode(node: Node) {
