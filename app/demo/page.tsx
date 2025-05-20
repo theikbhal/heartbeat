@@ -428,7 +428,6 @@ export default function DemoPage() {
                   setTimeout(() => setSelectedId(nextId), 0);
                 }
               }}
-              onClick={e => e.stopPropagation()}
             />
           ) : (
             <>
