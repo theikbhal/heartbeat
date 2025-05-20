@@ -124,6 +124,7 @@ export default function DemoPage() {
         return;
       }
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
         const flat = flattenTree(tree);
         const idx = flat.findIndex((n) => n.id === selectedId);
         let nextIdx = idx;
@@ -136,18 +137,6 @@ export default function DemoPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [mode, selectedId, tree, search]);
-
-  // Edit mode submit
-  function handleEditSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setTree((oldTree) => {
-      const copy = structuredClone(oldTree);
-      const found = findNodeById(copy, selectedId);
-      if (found) found.node.text = editText;
-      return copy;
-    });
-    setMode("command");
-  }
 
   // Render tree recursively
   function renderNode(node: Node) {
