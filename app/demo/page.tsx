@@ -149,7 +149,7 @@ function ImportModal({ onImport, onClose }: { onImport: (tree: Node) => void; on
       }
       onImport(tree);
       onClose();
-    } catch (e) {
+    } catch {
       setError('Invalid input!');
     }
   }
