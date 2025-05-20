@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import * as SibApiV3Sdk from '@getbrevo/brevo';
+require('dotenv').config(); // convert to import format
+// ...rest of the code
 
 const apiInstance = new SibApiV3Sdk.ContactsApi();
 apiInstance.setApiKey(SibApiV3Sdk.ContactsApiApiKeys.apiKey, process.env.BREVO_API_KEY || '');
@@ -25,7 +27,7 @@ export async function POST(request: Request) {
       { message: 'Successfully subscribed!' },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Subscription error:', error);
     return NextResponse.json(
       { error: 'Failed to subscribe. Please try again.' },

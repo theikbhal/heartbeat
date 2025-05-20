@@ -81,7 +81,7 @@ export default function Home() {
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-3xl font-bold text-center mb-4 text-black">Stay Updated</h2>
           <p className="text-gray-600 mb-8">
-            Get early access to new features and updates. We'll notify you when our mobile apps are ready!
+            Get early access to new features and updates. We&apos;ll notify you when our mobile apps are ready!
           </p>
           <EmailSubscribe />
         </div>
