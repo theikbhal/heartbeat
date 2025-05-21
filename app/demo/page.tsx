@@ -182,11 +182,23 @@ function ImportModal({ onImport, onClose }: { onImport: (tree: Node) => void; on
 
 // Helper: extract YouTube video ID from any link
 function getYouTubeId(url: string): string | null {
-  // Match youtu.be/xxxx, youtube.com/watch?v=xxxx, youtube.com/embed/xxxx, etc.
   const regex = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)?)([\w-]{11})/;
   const match = url.match(regex);
   return match ? match[1] : null;
 }
+
+// Helper: check if string is a URL
+function isUrl(text: string): boolean {
+  return /^(https?:\/\/|www\.)[\w\-]+(\.[\w\-]+)+/.test(text);
+}
+
+// Helper: check if string is an image link
+function isImageUrl(text: string): boolean {
+  return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(text);
+}
+
+// Per-node expanded state for YouTube embeds
+const [expandedMap, setExpandedMap] = useState<{ [id: string]: boolean }>({});
 
 export default function DemoPage() {
   const [tree, setTree] = useState<Node>({
@@ -220,8 +232,6 @@ export default function DemoPage() {
   const [searchResults, setSearchResults] = useState<Node[]>([]);
   const [searchIndex, setSearchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [expanded, setExpanded] = useState(false);
-  const youtubeId = getYouTubeId(tree.text);
 
   // Load from API on mount
   useEffect(() => {
@@ -483,12 +493,29 @@ export default function DemoPage() {
   function renderNode(node: Node) {
     const isSelected = node.id === selectedId;
     const match = search && node.text.toLowerCase().includes(search.toLowerCase());
-    
-    // If zoomed, only render the zoomed node and its descendants
-    if (zoomedNodeId && !getNodePath(node.id).some(n => n.id === zoomedNodeId)) {
-      return null;
+    const youtubeId = getYouTubeId(node.text);
+    const expanded = expandedMap[node.id] || false;
+    // Render node content
+    let nodeContent: React.ReactNode = node.text;
+    if (youtubeId) {
+      nodeContent = (
+        <>
+          <span>{node.text}</span>
+        </>
+      );
+    } else if (isImageUrl(node.text) && isUrl(node.text)) {
+      nodeContent = (
+        <a href={node.text} target="_blank" rel="noopener noreferrer">
+          <img src={node.text} alt="node-img" style={{ maxWidth: 300, maxHeight: 200, borderRadius: 8, display: 'block', margin: '4px 0' }} />
+        </a>
+      );
+    } else if (isUrl(node.text)) {
+      nodeContent = (
+        <a href={node.text} target="_blank" rel="noopener noreferrer" className="font-bold underline text-blue-800">
+          {node.text}
+        </a>
+      );
     }
-
     return (
       <div key={node.id} style={{ marginLeft: 24, borderLeft: "1px dotted #ccc" }}>
         <div
@@ -524,12 +551,10 @@ export default function DemoPage() {
                   setEditText(findNodeById(tree, selectedId)?.node.text || "");
                   setMode("command");
                 } else if (e.key === "Enter") {
-                  // Save and create sibling
                   setTree((oldTree) => {
                     const copy = structuredClone(oldTree);
                     const found = findNodeById(copy, selectedId);
                     if (found) found.node.text = editText;
-                    // Add sibling
                     if (found && found.parent) {
                       const idx = found.parent.children.findIndex((n) => n.id === selectedId);
                       const newId = generateId();
@@ -554,7 +579,7 @@ export default function DemoPage() {
           ) : (
             <div className="flex items-center gap-2">
               <span>
-                {node.text} {node.children.length > 0 && (
+                {nodeContent} {node.children.length > 0 && (
                   <span style={{ fontSize: 12, color: "#888" }}>
                     [{node.collapsed ? "+" : "-"}]
                   </span>
@@ -587,7 +612,7 @@ export default function DemoPage() {
             ></iframe>
             <button
               className="mt-1 text-xs text-blue-600 underline"
-              onClick={() => setExpanded(e => !e)}
+              onClick={() => setExpandedMap(m => ({ ...m, [node.id]: !expanded }))}
             >
               {expanded ? "Collapse" : "Expand"}
             </button>
