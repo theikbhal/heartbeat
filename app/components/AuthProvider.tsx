@@ -3,12 +3,18 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 
 const API_URL = "https://tawhid.in/tiny/heartbeat/users.php";
 const AUTH_KEY = "auth-user";
+const EXPIRY_DAYS = 90;
 
 export type User = {
   name: string;
   email: string;
   token: string;
 };
+
+interface StoredUser {
+  user: User;
+  expires: number;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -24,7 +30,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem(AUTH_KEY);
-    if (saved) setUser(JSON.parse(saved));
+    if (saved) {
+      try {
+        const parsed: StoredUser = JSON.parse(saved);
+        if (parsed.expires > Date.now()) {
+          setUser(parsed.user);
+        } else {
+          localStorage.removeItem(AUTH_KEY);
+        }
+      } catch {
+        localStorage.removeItem(AUTH_KEY);
+      }
+    }
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -37,7 +54,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (data.success && data.token) {
       const u = { name: data.name, email: data.email, token: data.token };
       setUser(u);
-      localStorage.setItem(AUTH_KEY, JSON.stringify(u));
+      localStorage.setItem(
+        AUTH_KEY,
+        JSON.stringify({ user: u, expires: Date.now() + EXPIRY_DAYS * 24 * 60 * 60 * 1000 })
+      );
       return { success: true };
     } else {
       return { success: false, error: data.error || "Login failed" };

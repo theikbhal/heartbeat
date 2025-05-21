@@ -180,6 +180,14 @@ function ImportModal({ onImport, onClose }: { onImport: (tree: Node) => void; on
   );
 }
 
+// Helper: extract YouTube video ID from any link
+function getYouTubeId(url: string): string | null {
+  // Match youtu.be/xxxx, youtube.com/watch?v=xxxx, youtube.com/embed/xxxx, etc.
+  const regex = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)?)([\w-]{11})/;
+  const match = url.match(regex);
+  return match ? match[1] : null;
+}
+
 export default function DemoPage() {
   const [tree, setTree] = useState<Node>({
     id: "root",
@@ -212,6 +220,8 @@ export default function DemoPage() {
   const [searchResults, setSearchResults] = useState<Node[]>([]);
   const [searchIndex, setSearchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const youtubeId = getYouTubeId(tree.text);
 
   // Load from API on mount
   useEffect(() => {
@@ -563,6 +573,26 @@ export default function DemoPage() {
             </div>
           )}
         </div>
+        {youtubeId && (
+          <div className="mt-2">
+            <iframe
+              width={expanded ? "80%" : 200}
+              height={expanded ? "400" : 200}
+              style={{ maxWidth: expanded ? "100%" : 200, display: "block", margin: "0 auto" }}
+              src={`https://www.youtube.com/embed/${youtubeId}`}
+              title="YouTube video"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            ></iframe>
+            <button
+              className="mt-1 text-xs text-blue-600 underline"
+              onClick={() => setExpanded(e => !e)}
+            >
+              {expanded ? "Collapse" : "Expand"}
+            </button>
+          </div>
+        )}
         {!node.collapsed && node.children.map(renderNode)}
       </div>
     );
