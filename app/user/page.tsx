@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../components/AuthProvider";
+import Footer from "../components/Footer";
 
 // Node type (copied from demo page)
 type Node = {
@@ -9,6 +10,8 @@ type Node = {
   text: string;
   children: Node[];
   collapsed?: boolean;
+  type?: 'check';
+  checked?: boolean;
 };
 
 function generateId() {
@@ -16,6 +19,23 @@ function generateId() {
 }
 
 const API_URL = "https://tawhid.in/tiny/heartbeat/api.php";
+
+// Helper: extract YouTube video ID from any link
+function getYouTubeId(url: string): string | null {
+  const regex = /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/)?)([\w-]{11})/;
+  const match = url.match(regex);
+  return match ? match[1] : null;
+}
+
+// Helper: check if string is a URL
+function isUrl(text: string): boolean {
+  return /^(https?:\/\/|www\.)[\w\-]+(\.[\w\-]+)+/.test(text);
+}
+
+// Helper: check if string is an image link
+function isImageUrl(text: string): boolean {
+  return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(text);
+}
 
 export default function UserPage() {
   const { user, logout } = useAuth();
@@ -32,6 +52,7 @@ export default function UserPage() {
   const [searchResults, setSearchResults] = useState<Node[]>([]);
   const [searchIndex, setSearchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [expandedMap, setExpandedMap] = useState<{ [id: string]: boolean }>({});
 
   // Helper to sanitize email for filename
   function emailToFilename(email: string) {
@@ -59,7 +80,8 @@ export default function UserPage() {
   }
 
   // Flatten tree for navigation
-  function flattenTree(tree: Node): Node[] {
+  function flattenTree(tree: Node | null): Node[] {
+    if (!tree) return [];
     const result: Node[] = [];
     function traverse(node: Node) {
       result.push(node);
@@ -73,6 +95,7 @@ export default function UserPage() {
 
   // Helper: get path for a node
   function getNodePathText(nodeId: string): string {
+    if (!tree) return '';
     const path = getNodePath(nodeId);
     return path.map(n => n.text).join(' > ');
   }
@@ -135,7 +158,7 @@ export default function UserPage() {
       if (e.key === "i") {
         e.preventDefault();
         setMode("edit");
-        const node = tree && findNodeById(tree, selectedId)?.node;
+        const node = findNodeById(tree, selectedId)?.node;
         setEditText(node?.text || "");
         return;
       }
@@ -207,7 +230,6 @@ export default function UserPage() {
           const parent = found.parent;
           const idx = parent.children.findIndex((n) => n.id === selectedId);
           parent.children.splice(idx, 1);
-          // Select previous sibling, next sibling, or parent
           if (parent.children[idx - 1]) {
             setSelectedId(parent.children[idx - 1].id);
           } else if (parent.children[idx]) {
@@ -226,6 +248,23 @@ export default function UserPage() {
         } else {
           setZoomedNodeId(selectedId);
         }
+        return;
+      }
+      if (e.key === "x") {
+        setTree(oldTree => {
+          const copy = structuredClone(oldTree);
+          const found = findNodeById(copy, selectedId);
+          if (found) {
+            if (found.node.type === 'check') {
+              delete found.node.type;
+              delete found.node.checked;
+            } else {
+              found.node.type = 'check';
+              found.node.checked = false;
+            }
+          }
+          return copy;
+        });
         return;
       }
     }
@@ -297,7 +336,8 @@ export default function UserPage() {
   }, [searchOpen, searchResults, searchIndex]);
 
   // Helper: find node by id
-  function findNodeById(tree: Node, id: string, parent: Node | null = null): { node: Node; parent: Node | null } | null {
+  function findNodeById(tree: Node | null, id: string, parent: Node | null = null): { node: Node; parent: Node | null } | null {
+    if (!tree) return null;
     if (tree.id === id) return { node: tree, parent };
     for (const child of tree.children) {
       const found = findNodeById(child, id, tree);
@@ -331,6 +371,47 @@ export default function UserPage() {
   function renderNode(node: Node) {
     const isSelected = node.id === selectedId;
     const match = search && node.text.toLowerCase().includes(search.toLowerCase());
+    const youtubeId = getYouTubeId(node.text);
+    const expanded = expandedMap[node.id] || false;
+    // Render node content
+    let nodeContent: React.ReactNode = node.text;
+    if (node.type === 'check') {
+      nodeContent = (
+        <label className="flex items-center gap-2 select-none cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!node.checked}
+            onChange={e => {
+              setTree(oldTree => {
+                const copy = structuredClone(oldTree);
+                const found = findNodeById(copy, node.id);
+                if (found) found.node.checked = e.target.checked;
+                return copy;
+              });
+            }}
+          />
+          <span className={node.checked ? 'line-through text-gray-400' : ''}>{node.text}</span>
+        </label>
+      );
+    } else if (youtubeId) {
+      nodeContent = (
+        <>
+          <span>{node.text}</span>
+        </>
+      );
+    } else if (isImageUrl(node.text) && isUrl(node.text)) {
+      nodeContent = (
+        <a href={node.text} target="_blank" rel="noopener noreferrer">
+          <img src={node.text} alt="node-img" style={{ maxWidth: 300, maxHeight: 200, borderRadius: 8, display: 'block', margin: '4px 0' }} />
+        </a>
+      );
+    } else if (isUrl(node.text)) {
+      nodeContent = (
+        <a href={node.text} target="_blank" rel="noopener noreferrer" className="font-bold underline text-blue-800">
+          {node.text}
+        </a>
+      );
+    }
     return (
       <div key={node.id} style={{ marginLeft: 24, borderLeft: "1px dotted #ccc" }}>
         <div
@@ -354,10 +435,22 @@ export default function UserPage() {
               style={{ color: "#111", fontWeight: "bold" }}
               onBlur={() => {
                 setTree((oldTree) => {
-                  if (!oldTree) return oldTree;
                   const copy = structuredClone(oldTree);
                   const found = findNodeById(copy, selectedId);
-                  if (found) found.node.text = editText;
+                  if (found) {
+                    // Slash command: /check or /text
+                    if (editText.startsWith('/check')) {
+                      found.node.type = 'check';
+                      found.node.checked = false;
+                      found.node.text = editText.replace(/^\/check\s*/, '');
+                    } else if (editText.startsWith('/text')) {
+                      delete found.node.type;
+                      delete found.node.checked;
+                      found.node.text = editText.replace(/^\/text\s*/, '');
+                    } else {
+                      found.node.text = editText;
+                    }
+                  }
                   return copy;
                 });
                 setMode("command");
@@ -368,11 +461,22 @@ export default function UserPage() {
                   setMode("command");
                 } else if (e.key === "Enter") {
                   setTree((oldTree) => {
-                    if (!oldTree) return oldTree;
                     const copy = structuredClone(oldTree);
                     const found = findNodeById(copy, selectedId);
-                    if (found) found.node.text = editText;
-                    // Add sibling
+                    if (found) {
+                      // Slash command: /check or /text
+                      if (editText.startsWith('/check')) {
+                        found.node.type = 'check';
+                        found.node.checked = false;
+                        found.node.text = editText.replace(/^\/check\s*/, '');
+                      } else if (editText.startsWith('/text')) {
+                        delete found.node.type;
+                        delete found.node.checked;
+                        found.node.text = editText.replace(/^\/text\s*/, '');
+                      } else {
+                        found.node.text = editText;
+                      }
+                    }
                     if (found && found.parent) {
                       const idx = found.parent.children.findIndex((n) => n.id === selectedId);
                       const newId = generateId();
@@ -397,12 +501,35 @@ export default function UserPage() {
           ) : (
             <div className="flex items-center gap-2">
               <span>
-                {node.text} {node.children.length > 0 && (
+                {nodeContent} {node.children.length > 0 && (
                   <span style={{ fontSize: 12, color: "#888" }}>
                     [{node.collapsed ? "+" : "-"}]
                   </span>
                 )}
               </span>
+              <button
+                className="text-xs text-gray-400 hover:text-green-600 border border-gray-200 rounded px-1"
+                title="Toggle checklist"
+                onClick={e => {
+                  e.stopPropagation();
+                  setTree(oldTree => {
+                    const copy = structuredClone(oldTree);
+                    const found = findNodeById(copy, node.id);
+                    if (found) {
+                      if (found.node.type === 'check') {
+                        delete found.node.type;
+                        delete found.node.checked;
+                      } else {
+                        found.node.type = 'check';
+                        found.node.checked = false;
+                      }
+                    }
+                    return copy;
+                  });
+                }}
+              >
+                ☑️
+              </button>
               <button
                 onClick={e => {
                   e.stopPropagation();
@@ -416,6 +543,26 @@ export default function UserPage() {
             </div>
           )}
         </div>
+        {youtubeId && (
+          <div className="mt-2">
+            <iframe
+              width={expanded ? "80%" : 200}
+              height={expanded ? "400" : 200}
+              style={{ maxWidth: expanded ? "100%" : 200, display: "block", margin: "0 auto" }}
+              src={`https://www.youtube.com/embed/${youtubeId}`}
+              title="YouTube video"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            ></iframe>
+            <button
+              className="mt-1 text-xs text-blue-600 underline"
+              onClick={() => setExpandedMap(m => ({ ...m, [node.id]: !expanded }))}
+            >
+              {expanded ? "Collapse" : "Expand"}
+            </button>
+          </div>
+        )}
         {!node.collapsed && node.children.map(renderNode)}
       </div>
     );
@@ -503,6 +650,7 @@ export default function UserPage() {
           {search && <div className="mt-4 text-xs text-gray-500">Searching for: <b>{search}</b></div>}
         </div>
       </div>
+      <Footer />
     </div>
   );
 } 

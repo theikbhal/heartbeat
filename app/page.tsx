@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { EmailSubscribe } from './components/EmailSubscribe'
 import { AuthProvider, useAuth } from './components/AuthProvider'
+import Footer from "./components/Footer";
 
 function HomeContent() {
   const { user } = useAuth();
@@ -178,7 +179,10 @@ function HomeContent() {
 export default function Home() {
   return (
     <AuthProvider>
-      <HomeContent />
+      <div className="min-h-screen bg-gray-50">
+        <HomeContent />
+        <Footer />
+      </div>
     </AuthProvider>
   );
 }
