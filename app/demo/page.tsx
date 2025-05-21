@@ -64,6 +64,8 @@ function HelpCard({ onClose }: { onClose: () => void }) {
           <li><b>Arrow Up/Down</b>: Traverse nodes</li>
           <li><b>Enter (in edit)</b>: Save & add sibling</li>
           <li><b>d</b>: Delete current node</li>
+          <li><b>Tab</b>: Make child of previous sibling</li>
+          <li><b>Shift+Tab</b>: Move up one level</li>
         </ul>
       </div>
     </div>
@@ -479,6 +481,43 @@ export default function DemoPage() {
         });
         return;
       }
+      if (e.key === "Tab" && !e.shiftKey) {
+        e.preventDefault();
+        setTree((oldTree) => {
+          const copy = structuredClone(oldTree);
+          const found = findNodeById(copy, selectedId);
+          if (!found || !found.parent) return copy;
+          const parent = found.parent;
+          const idx = parent.children.findIndex((n) => n.id === selectedId);
+          if (idx > 0) {
+            // Remove from parent
+            const [node] = parent.children.splice(idx, 1);
+            // Add as last child of previous sibling
+            parent.children[idx - 1].children.push(node);
+          }
+          return copy;
+        });
+        return;
+      }
+      if (e.key === "Tab" && e.shiftKey) {
+        e.preventDefault();
+        setTree((oldTree) => {
+          const copy = structuredClone(oldTree);
+          const found = findNodeById(copy, selectedId);
+          if (!found || !found.parent) return copy;
+          const parent = found.parent;
+          const grand = findNodeById(copy, parent.id)?.parent;
+          if (!grand) return copy; // already at root
+          // Remove from parent
+          const idx = parent.children.findIndex((n) => n.id === selectedId);
+          const [node] = parent.children.splice(idx, 1);
+          // Insert after parent in grandparent's children
+          const parentIdx = grand.children.findIndex((n) => n.id === parent.id);
+          grand.children.splice(parentIdx + 1, 0, node);
+          return copy;
+        });
+        return;
+      }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -646,10 +685,6 @@ export default function DemoPage() {
                       const [node] = parent.children.splice(idx, 1);
                       // Add as last child of previous sibling
                       parent.children[idx - 1].children.push(node);
-                      setTimeout(() => {
-                        setSelectedId(node.id);
-                        setEditText(node.text);
-                      }, 0);
                     }
                     return copy;
                   });
@@ -668,10 +703,6 @@ export default function DemoPage() {
                     // Insert after parent in grandparent's children
                     const parentIdx = grand.children.findIndex((n) => n.id === parent.id);
                     grand.children.splice(parentIdx + 1, 0, node);
-                    setTimeout(() => {
-                      setSelectedId(node.id);
-                      setEditText(node.text);
-                    }, 0);
                     return copy;
                   });
                 }
