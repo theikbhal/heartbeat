@@ -15,27 +15,6 @@ function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-function findNodeById(tree: Node, id: string, parent: Node | null = null): { node: Node; parent: Node | null } | null {
-  if (tree.id === id) return { node: tree, parent };
-  for (const child of tree.children) {
-    const found = findNodeById(child, id, tree);
-    if (found) return found;
-  }
-  return null;
-}
-
-function flattenTree(tree: Node): Node[] {
-  const result: Node[] = [];
-  function traverse(node: Node) {
-    result.push(node);
-    if (!node.collapsed) {
-      for (const child of node.children) traverse(child);
-    }
-  }
-  traverse(tree);
-  return result;
-}
-
 const API_URL = "https://tawhid.in/tiny/heartbeat/api.php";
 
 export default function UserPage() {
@@ -51,7 +30,7 @@ export default function UserPage() {
 
   useEffect(() => {
     if (!user) router.push("/login");
-  }, [user]);
+  }, [user, router]);
 
   // Load mindmap for user
   useEffect(() => {

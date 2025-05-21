@@ -9,7 +9,7 @@ export default function LogoutPage() {
 
   useEffect(() => {
     logout().then(() => router.push("/login"));
-  }, []);
+  }, [logout, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
