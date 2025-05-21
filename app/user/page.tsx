@@ -231,7 +231,7 @@ export default function UserPage() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mode, selectedId, tree, search, zoomedNodeId]);
+  }, [mode, selectedId, tree, search, zoomedNodeId, findNodeById]);
 
   // Ctrl+K to open search
   useEffect(() => {

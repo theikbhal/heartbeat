@@ -197,9 +197,6 @@ function isImageUrl(text: string): boolean {
   return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(text);
 }
 
-// Per-node expanded state for YouTube embeds
-const [expandedMap, setExpandedMap] = useState<{ [id: string]: boolean }>({});
-
 export default function DemoPage() {
   const [tree, setTree] = useState<Node>({
     id: "root",
@@ -232,6 +229,7 @@ export default function DemoPage() {
   const [searchResults, setSearchResults] = useState<Node[]>([]);
   const [searchIndex, setSearchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [expandedMap, setExpandedMap] = useState<{ [id: string]: boolean }>({});
 
   // Load from API on mount
   useEffect(() => {
