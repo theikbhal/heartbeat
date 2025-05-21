@@ -66,6 +66,10 @@ function HelpCard({ onClose }: { onClose: () => void }) {
           <li><b>d</b>: Delete current node</li>
           <li><b>Tab</b>: Make child of previous sibling</li>
           <li><b>Shift+Tab</b>: Move up one level</li>
+          <li><b>y</b>: Copy node</li>
+          <li><b>x</b>: Cut node</li>
+          <li><b>p</b>: Paste after node</li>
+          <li><b>P</b>: Paste as child</li>
         </ul>
       </div>
     </div>
@@ -235,6 +239,10 @@ export default function DemoPage() {
   const [searchIndex, setSearchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [expandedMap, setExpandedMap] = useState<{ [id: string]: boolean }>({});
+  const [clipboard, setClipboard] = useState<{ node: Node; operation: 'copy' | 'cut' } | null>(null);
+  // Add selection state
+  const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
 
   // Load from API on mount
   useEffect(() => {
@@ -366,14 +374,124 @@ export default function DemoPage() {
     return path.map(n => n.text).join(' > ');
   }
 
-  // Keyboard handler
+  // Add selection helper functions
+  const handleNodeSelect = (nodeId: string, e: React.MouseEvent) => {
+    if (e.shiftKey && lastSelectedId) {
+      // Sequential selection
+      const flat = flattenTree(tree);
+      const lastIdx = flat.findIndex(n => n.id === lastSelectedId);
+      const currentIdx = flat.findIndex(n => n.id === nodeId);
+      if (lastIdx !== -1 && currentIdx !== -1) {
+        const start = Math.min(lastIdx, currentIdx);
+        const end = Math.max(lastIdx, currentIdx);
+        const newSelection = new Set(selectedNodes);
+        for (let i = start; i <= end; i++) {
+          newSelection.add(flat[i].id);
+        }
+        setSelectedNodes(newSelection);
+      }
+    } else if (e.ctrlKey || e.metaKey) {
+      // Random selection
+      const newSelection = new Set(selectedNodes);
+      if (newSelection.has(nodeId)) {
+        newSelection.delete(nodeId);
+      } else {
+        newSelection.add(nodeId);
+      }
+      setSelectedNodes(newSelection);
+    } else {
+      // Single selection
+      setSelectedNodes(new Set([nodeId]));
+    }
+    setLastSelectedId(nodeId);
+    setSelectedId(nodeId);
+  };
+
+  // Update keyboard handler
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (mode === "edit") return;
+      
+      // Add escape to clear selection
       if (e.key === "Escape") {
+        if (selectedNodes.size > 1) {
+          setSelectedNodes(new Set([selectedId]));
+          setMode("command");
+          return;
+        }
         setMode("command");
         return;
       }
+
+      // Handle copy/cut for multiple nodes
+      if (e.key === "y" || e.key === "x") {
+        e.preventDefault();
+        if (selectedId === "root") return;
+        
+        if (selectedNodes.size > 1) {
+          // Handle multiple nodes
+          const nodes: Node[] = [];
+          selectedNodes.forEach(id => {
+            const found = findNodeById(tree, id);
+            if (found) nodes.push(structuredClone(found.node));
+          });
+          
+          if (nodes.length > 0) {
+            setClipboard({ 
+              node: {
+                id: generateId(),
+                text: `Group of ${nodes.length} nodes`,
+                children: nodes
+              }, 
+              operation: e.key === 'y' ? 'copy' : 'cut' 
+            });
+            
+            if (e.key === 'x') {
+              // Remove all selected nodes
+              setTree(oldTree => {
+                const copy = structuredClone(oldTree);
+                selectedNodes.forEach(id => {
+                  const found = findNodeById(copy, id);
+                  if (found && found.parent) {
+                    const idx = found.parent.children.findIndex(n => n.id === id);
+                    if (idx !== -1) {
+                      found.parent.children.splice(idx, 1);
+                    }
+                  }
+                });
+                return copy;
+              });
+              setSelectedNodes(new Set());
+            }
+          }
+        } else {
+          // Handle single node (existing code)
+          const found = findNodeById(tree, selectedId);
+          if (found) {
+            setClipboard({ node: structuredClone(found.node), operation: e.key === 'y' ? 'copy' : 'cut' });
+            if (e.key === 'x') {
+              setTree(oldTree => {
+                const copy = structuredClone(oldTree);
+                const found = findNodeById(copy, selectedId);
+                if (!found || !found.parent) return copy;
+                const parent = found.parent;
+                const idx = parent.children.findIndex((n) => n.id === selectedId);
+                parent.children.splice(idx, 1);
+                if (parent.children[idx]) {
+                  setSelectedId(parent.children[idx].id);
+                } else if (parent.children[idx - 1]) {
+                  setSelectedId(parent.children[idx - 1].id);
+                } else {
+                  setSelectedId(parent.id);
+                }
+                return copy;
+              });
+            }
+          }
+        }
+        return;
+      }
+
       if (e.key === "i") {
         e.preventDefault();
         setMode("edit");
@@ -432,6 +550,27 @@ export default function DemoPage() {
         let nextIdx = idx;
         if (e.key === "ArrowDown" && idx < flat.length - 1) nextIdx = idx + 1;
         if (e.key === "ArrowUp" && idx > 0) nextIdx = idx - 1;
+
+        if (e.shiftKey) {
+          // Sequential selection with Shift + Arrow
+          const newSelection = new Set(selectedNodes);
+          if (lastSelectedId) {
+            const lastIdx = flat.findIndex(n => n.id === lastSelectedId);
+            const start = Math.min(lastIdx, nextIdx);
+            const end = Math.max(lastIdx, nextIdx);
+            for (let i = start; i <= end; i++) {
+              newSelection.add(flat[i].id);
+            }
+          } else {
+            newSelection.add(flat[nextIdx].id);
+          }
+          setSelectedNodes(newSelection);
+          setLastSelectedId(flat[nextIdx].id);
+        } else {
+          // Single selection
+          setSelectedNodes(new Set([flat[nextIdx].id]));
+          setLastSelectedId(flat[nextIdx].id);
+        }
         setSelectedId(flat[nextIdx].id);
         return;
       }
@@ -462,23 +601,6 @@ export default function DemoPage() {
         } else {
           setZoomedNodeId(selectedId);
         }
-        return;
-      }
-      if (e.key === "x") {
-        setTree(oldTree => {
-          const copy = structuredClone(oldTree);
-          const found = findNodeById(copy, selectedId);
-          if (found) {
-            if (found.node.type === 'check') {
-              delete found.node.type;
-              delete found.node.checked;
-            } else {
-              found.node.type = 'check';
-              found.node.checked = false;
-            }
-          }
-          return copy;
-        });
         return;
       }
       if (e.key === "Tab" && !e.shiftKey) {
@@ -521,7 +643,7 @@ export default function DemoPage() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mode, selectedId, tree, search, zoomedNodeId]);
+  }, [mode, selectedId, tree, search, zoomedNodeId, clipboard, selectedNodes]);
 
   // Render breadcrumb navigation
   function renderBreadcrumb() {
@@ -546,7 +668,7 @@ export default function DemoPage() {
 
   // Render tree recursively
   function renderNode(node: Node) {
-    const isSelected = node.id === selectedId;
+    const isSelected = selectedNodes.has(node.id);
     const match = search && node.text.toLowerCase().includes(search.toLowerCase());
     const youtubeId = getYouTubeId(node.text);
     const expanded = expandedMap[node.id] || false;
@@ -600,8 +722,9 @@ export default function DemoPage() {
             borderRadius: 4,
             cursor: "pointer",
             display: "inline-block",
+            border: isSelected ? "2px solid #3b82f6" : undefined,
           }}
-          onClick={() => setSelectedId(node.id)}
+          onClick={(e) => handleNodeSelect(node.id, e)}
         >
           {mode === "edit" && isSelected ? (
             <input
@@ -830,6 +953,15 @@ export default function DemoPage() {
         </button>
         {showImport && <ImportModal onImport={setTree} onClose={() => setShowImport(false)} />}
         <h1 className="text-2xl font-bold mb-4 text-black">Mindmap Demo (Keyboard Driven)</h1>
+        {selectedNodes.size > 1 && (
+          <div className="mb-4 p-3 bg-blue-100 border-l-4 border-blue-500 text-blue-900 rounded">
+            <b>Multiple nodes selected:</b> {selectedNodes.size} nodes
+            <div className="text-sm mt-1">
+              Use Shift+Click for sequential selection<br />
+              Use Ctrl/Cmd+Click for random selection
+            </div>
+          </div>
+        )}
         {renderBreadcrumb()}
         {/* Search Modal/Dropdown */}
         {searchOpen && (
