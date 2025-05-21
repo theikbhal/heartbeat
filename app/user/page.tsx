@@ -116,7 +116,7 @@ export default function UserPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [expandedMap, setExpandedMap] = useState<{ [id: string]: boolean }>({});
   const [showHelp, setShowHelp] = useState(false);
-  const [clipboard, setClipboard] = useState<{ node: Node; operation: 'copy' | 'cut' } | null>(null);
+  const [clipboard, setClipboard] = useState<{ nodes: Node[]; operation: 'copy' | 'cut' } | null>(null);
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
@@ -347,16 +347,22 @@ export default function UserPage() {
           const nodes: Node[] = [];
           selectedNodes.forEach(id => {
             const found = findNodeById(tree, id);
-            if (found) nodes.push(structuredClone(found.node));
+            if (found) {
+              // Create a deep copy of the node
+              const deepCopy = structuredClone(found.node);
+              // Generate new IDs for the node and all its children
+              function generateNewIds(node: Node) {
+                node.id = generateId();
+                node.children.forEach(generateNewIds);
+              }
+              generateNewIds(deepCopy);
+              nodes.push(deepCopy);
+            }
           });
           
           if (nodes.length > 0) {
             setClipboard({ 
-              node: {
-                id: generateId(),
-                text: `Group of ${nodes.length} nodes`,
-                children: nodes
-              }, 
+              nodes: nodes, // Store array of nodes instead of a single node
               operation: e.key === 'y' ? 'copy' : 'cut' 
             });
             
@@ -390,7 +396,20 @@ export default function UserPage() {
           // Handle single node
           const found = findNodeById(tree, selectedId);
           if (found) {
-            setClipboard({ node: structuredClone(found.node), operation: e.key === 'y' ? 'copy' : 'cut' });
+            // Create a deep copy of the node
+            const deepCopy = structuredClone(found.node);
+            // Generate new IDs for the node and all its children
+            function generateNewIds(node: Node) {
+              node.id = generateId();
+              node.children.forEach(generateNewIds);
+            }
+            generateNewIds(deepCopy);
+            
+            setClipboard({ 
+              nodes: [deepCopy], // Store as array for consistency
+              operation: e.key === 'y' ? 'copy' : 'cut' 
+            });
+            
             setToast({ 
               message: e.key === 'y' 
                 ? `Copied: ${found.node.text}` 
@@ -431,24 +450,22 @@ export default function UserPage() {
           const found = findNodeById(copy, selectedId);
           if (!found) return copy;
           
-          const newNode = structuredClone(clipboard.node);
-          newNode.id = generateId(); // Generate new ID for the pasted node
-          
           if (e.key === "p") {
             // Paste after selected node
             if (found.parent) {
               const idx = found.parent.children.findIndex((n) => n.id === selectedId);
-              found.parent.children.splice(idx + 1, 0, newNode);
+              // Insert all nodes after the selected node
+              found.parent.children.splice(idx + 1, 0, ...clipboard.nodes);
               setToast({ 
-                message: `Pasted after: ${found.node.text}`, 
+                message: `Pasted ${clipboard.nodes.length} nodes after: ${found.node.text}`, 
                 type: 'success' 
               });
             }
           } else {
-            // Paste as child
-            found.node.children.push(newNode);
+            // Paste as children of selected node
+            found.node.children.push(...clipboard.nodes);
             setToast({ 
-              message: `Pasted as child of: ${found.node.text}`, 
+              message: `Pasted ${clipboard.nodes.length} nodes as children of: ${found.node.text}`, 
               type: 'success' 
             });
           }
