@@ -12,6 +12,8 @@ type Node = {
   text: string;
   children: Node[];
   collapsed?: boolean;
+  type?: 'check';
+  checked?: boolean;
 };
 
 function generateId() {
@@ -370,7 +372,7 @@ export default function DemoPage() {
         return;
       }
       if (e.key === "i") {
-        e.preventDefault(); // Prevent 'i' from being added to the node text
+        e.preventDefault();
         setMode("edit");
         const node = findNodeById(tree, selectedId)?.node;
         setEditText(node?.text || "");
@@ -431,7 +433,6 @@ export default function DemoPage() {
         return;
       }
       if (e.key === "d") {
-        // Delete current node (except root)
         if (selectedId === "root") return;
         setTree((oldTree) => {
           const copy = structuredClone(oldTree);
@@ -440,7 +441,6 @@ export default function DemoPage() {
           const parent = found.parent;
           const idx = parent.children.findIndex((n) => n.id === selectedId);
           parent.children.splice(idx, 1);
-          // Select previous sibling, next sibling, or parent
           if (parent.children[idx - 1]) {
             setSelectedId(parent.children[idx - 1].id);
           } else if (parent.children[idx]) {
@@ -459,6 +459,23 @@ export default function DemoPage() {
         } else {
           setZoomedNodeId(selectedId);
         }
+        return;
+      }
+      if (e.key === "x") {
+        setTree(oldTree => {
+          const copy = structuredClone(oldTree);
+          const found = findNodeById(copy, selectedId);
+          if (found) {
+            if (found.node.type === 'check') {
+              delete found.node.type;
+              delete found.node.checked;
+            } else {
+              found.node.type = 'check';
+              found.node.checked = false;
+            }
+          }
+          return copy;
+        });
         return;
       }
     }
@@ -495,7 +512,25 @@ export default function DemoPage() {
     const expanded = expandedMap[node.id] || false;
     // Render node content
     let nodeContent: React.ReactNode = node.text;
-    if (youtubeId) {
+    if (node.type === 'check') {
+      nodeContent = (
+        <label className="flex items-center gap-2 select-none cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!node.checked}
+            onChange={e => {
+              setTree(oldTree => {
+                const copy = structuredClone(oldTree);
+                const found = findNodeById(copy, node.id);
+                if (found) found.node.checked = e.target.checked;
+                return copy;
+              });
+            }}
+          />
+          <span className={node.checked ? 'line-through text-gray-400' : ''}>{node.text}</span>
+        </label>
+      );
+    } else if (youtubeId) {
       nodeContent = (
         <>
           <span>{node.text}</span>
@@ -539,7 +574,20 @@ export default function DemoPage() {
                 setTree((oldTree) => {
                   const copy = structuredClone(oldTree);
                   const found = findNodeById(copy, selectedId);
-                  if (found) found.node.text = editText;
+                  if (found) {
+                    // Slash command: /check or /text
+                    if (editText.startsWith('/check')) {
+                      found.node.type = 'check';
+                      found.node.checked = false;
+                      found.node.text = editText.replace(/^\/check\s*/, '');
+                    } else if (editText.startsWith('/text')) {
+                      delete found.node.type;
+                      delete found.node.checked;
+                      found.node.text = editText.replace(/^\/text\s*/, '');
+                    } else {
+                      found.node.text = editText;
+                    }
+                  }
                   return copy;
                 });
                 setMode("command");
@@ -552,7 +600,20 @@ export default function DemoPage() {
                   setTree((oldTree) => {
                     const copy = structuredClone(oldTree);
                     const found = findNodeById(copy, selectedId);
-                    if (found) found.node.text = editText;
+                    if (found) {
+                      // Slash command: /check or /text
+                      if (editText.startsWith('/check')) {
+                        found.node.type = 'check';
+                        found.node.checked = false;
+                        found.node.text = editText.replace(/^\/check\s*/, '');
+                      } else if (editText.startsWith('/text')) {
+                        delete found.node.type;
+                        delete found.node.checked;
+                        found.node.text = editText.replace(/^\/text\s*/, '');
+                      } else {
+                        found.node.text = editText;
+                      }
+                    }
                     if (found && found.parent) {
                       const idx = found.parent.children.findIndex((n) => n.id === selectedId);
                       const newId = generateId();
@@ -583,6 +644,29 @@ export default function DemoPage() {
                   </span>
                 )}
               </span>
+              <button
+                className="text-xs text-gray-400 hover:text-green-600 border border-gray-200 rounded px-1"
+                title="Toggle checklist"
+                onClick={e => {
+                  e.stopPropagation();
+                  setTree(oldTree => {
+                    const copy = structuredClone(oldTree);
+                    const found = findNodeById(copy, node.id);
+                    if (found) {
+                      if (found.node.type === 'check') {
+                        delete found.node.type;
+                        delete found.node.checked;
+                      } else {
+                        found.node.type = 'check';
+                        found.node.checked = false;
+                      }
+                    }
+                    return copy;
+                  });
+                }}
+              >
+                ☑️
+              </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
