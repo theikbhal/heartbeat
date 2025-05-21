@@ -800,9 +800,20 @@ export default function DemoPage() {
           ?
         </button>
         {showHelp && <HelpCard onClose={() => setShowHelp(false)} />}
+        {/* Search icon */}
+        <button
+          className="absolute top-4 right-16 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
+          onClick={() => {
+            setSearchOpen(true);
+            setTimeout(() => searchInputRef.current?.focus(), 0);
+          }}
+          aria-label="Search nodes"
+        >
+          🔍
+        </button>
         {/* Export icon */}
         <button
-          className="absolute top-4 right-16 bg-green-100 hover:bg-green-200 text-green-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
+          className="absolute top-4 right-28 bg-green-100 hover:bg-green-200 text-green-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
           onClick={() => setShowExport(true)}
           aria-label="Export mindmap"
         >
@@ -824,33 +835,45 @@ export default function DemoPage() {
         {searchOpen && (
           <div className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-20">
             <div className="bg-white rounded-xl shadow-lg mt-32 w-full max-w-lg p-4">
-              <input
-                ref={searchInputRef}
-                value={searchInput}
-                onChange={e => setSearchInput(e.target.value)}
-                className="w-full border px-4 py-2 rounded text-lg mb-2 text-black"
-                placeholder="Search nodes..."
-                onKeyDown={e => {
-                  if (e.key === "Enter" && searchResults[searchIndex]) {
-                    setZoomedNodeId(searchResults[searchIndex].id);
-                    setSelectedId(searchResults[searchIndex].id);
+              <div className="flex items-center gap-2 mb-2">
+                <input
+                  ref={searchInputRef}
+                  value={searchInput}
+                  onChange={e => setSearchInput(e.target.value)}
+                  className="flex-1 border px-4 py-2 rounded text-lg text-black"
+                  placeholder="Search nodes..."
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && searchResults[searchIndex]) {
+                      setZoomedNodeId(searchResults[searchIndex].id);
+                      setSelectedId(searchResults[searchIndex].id);
+                      setSearchOpen(false);
+                      setSearchInput("");
+                      setSearchResults([]);
+                    } else if (e.key === "ArrowDown") {
+                      setSearchIndex(i => Math.min(i + 1, searchResults.length - 1));
+                      e.preventDefault();
+                    } else if (e.key === "ArrowUp") {
+                      setSearchIndex(i => Math.max(i - 1, 0));
+                      e.preventDefault();
+                    } else if (e.key === "Escape") {
+                      setSearchOpen(false);
+                      setSearchInput("");
+                      setSearchResults([]);
+                    }
+                    e.stopPropagation();
+                  }}
+                />
+                <button
+                  onClick={() => {
                     setSearchOpen(false);
                     setSearchInput("");
                     setSearchResults([]);
-                  } else if (e.key === "ArrowDown") {
-                    setSearchIndex(i => Math.min(i + 1, searchResults.length - 1));
-                    e.preventDefault();
-                  } else if (e.key === "ArrowUp") {
-                    setSearchIndex(i => Math.max(i - 1, 0));
-                    e.preventDefault();
-                  } else if (e.key === "Escape") {
-                    setSearchOpen(false);
-                    setSearchInput("");
-                    setSearchResults([]);
-                  }
-                  e.stopPropagation();
-                }}
-              />
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
               <div className="max-h-60 overflow-y-auto">
                 {searchResults.length === 0 && searchInput && (
                   <div className="text-gray-400 px-2 py-1">No results</div>
@@ -872,7 +895,7 @@ export default function DemoPage() {
                   </div>
                 ))}
               </div>
-              <div className="text-xs text-gray-400 mt-2">Use ↑/↓ to navigate, Enter to zoom, Esc to close</div>
+              <div className="text-xs text-gray-400 mt-2">Use ↑/↓ to navigate, Enter to select, Esc to close</div>
             </div>
           </div>
         )}
