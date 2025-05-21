@@ -100,7 +100,6 @@ export default function UserPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [expandedMap, setExpandedMap] = useState<{ [id: string]: boolean }>({});
   const [showHelp, setShowHelp] = useState(false);
-  const [showExport, setShowExport] = useState(false);
   const [clipboard, setClipboard] = useState<{ node: Node; operation: 'copy' | 'cut' } | null>(null);
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
@@ -465,7 +464,7 @@ export default function UserPage() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mode, selectedId, tree, search, zoomedNodeId, clipboard, selectedNodes]);
+  }, [mode, selectedId, tree, search, zoomedNodeId, clipboard, selectedNodes, lastSelectedId]);
 
   // Ctrl+K to open search
   useEffect(() => {
@@ -868,14 +867,6 @@ export default function UserPage() {
         aria-label="Search nodes"
       >
         🔍
-      </button>
-      {/* Export icon */}
-      <button
-        className="absolute top-4 right-28 bg-green-100 hover:bg-green-200 text-green-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
-        onClick={() => setShowExport(true)}
-        aria-label="Export mindmap"
-      >
-        &#8681;
       </button>
       {/* Search Modal/Dropdown */}
       {searchOpen && (

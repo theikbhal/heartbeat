@@ -643,7 +643,7 @@ export default function DemoPage() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mode, selectedId, tree, search, zoomedNodeId, clipboard, selectedNodes]);
+  }, [mode, selectedId, tree, search, zoomedNodeId, clipboard, selectedNodes, lastSelectedId]);
 
   // Render breadcrumb navigation
   function renderBreadcrumb() {
