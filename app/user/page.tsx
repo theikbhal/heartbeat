@@ -71,6 +71,12 @@ export default function UserPage() {
     return result;
   }
 
+  // Helper: get path for a node
+  function getNodePathText(nodeId: string): string {
+    const path = getNodePath(nodeId);
+    return path.map(n => n.text).join(' > ');
+  }
+
   useEffect(() => {
     if (!user) router.push("/login");
   }, [user, router]);
@@ -442,7 +448,26 @@ export default function UserPage() {
               onChange={e => setSearchInput(e.target.value)}
               className="w-full border px-4 py-2 rounded text-lg mb-2 text-black"
               placeholder="Search nodes..."
-              onKeyDown={e => e.stopPropagation()}
+              onKeyDown={e => {
+                if (e.key === "Enter" && searchResults[searchIndex]) {
+                  setZoomedNodeId(searchResults[searchIndex].id);
+                  setSelectedId(searchResults[searchIndex].id);
+                  setSearchOpen(false);
+                  setSearchInput("");
+                  setSearchResults([]);
+                } else if (e.key === "ArrowDown") {
+                  setSearchIndex(i => Math.min(i + 1, searchResults.length - 1));
+                  e.preventDefault();
+                } else if (e.key === "ArrowUp") {
+                  setSearchIndex(i => Math.max(i - 1, 0));
+                  e.preventDefault();
+                } else if (e.key === "Escape") {
+                  setSearchOpen(false);
+                  setSearchInput("");
+                  setSearchResults([]);
+                }
+                e.stopPropagation();
+              }}
             />
             <div className="max-h-60 overflow-y-auto">
               {searchResults.length === 0 && searchInput && (
@@ -451,7 +476,7 @@ export default function UserPage() {
               {searchResults.map((node, i) => (
                 <div
                   key={node.id}
-                  className={`px-3 py-2 rounded cursor-pointer ${i === searchIndex ? "bg-blue-100 text-blue-900" : "hover:bg-gray-100"}`}
+                  className={`px-3 py-2 rounded cursor-pointer text-gray-900 ${i === searchIndex ? "bg-blue-100 text-black" : "hover:bg-gray-100"}`}
                   onMouseDown={() => {
                     setZoomedNodeId(node.id);
                     setSelectedId(node.id);
@@ -460,7 +485,8 @@ export default function UserPage() {
                     setSearchResults([]);
                   }}
                 >
-                  {node.text}
+                  <span className="block text-xs text-gray-500 mb-1">{getNodePathText(node.id)}</span>
+                  <span className="block font-medium">{node.text}</span>
                 </div>
               ))}
             </div>
