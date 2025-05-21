@@ -83,6 +83,22 @@ function HelpCard({ onClose }: { onClose: () => void }) {
   );
 }
 
+// Add Toast component
+function Toast({ message, type, onClose }: { message: string; type: 'success' | 'info'; onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 2000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-white ${
+      type === 'success' ? 'bg-green-500' : 'bg-blue-500'
+    }`}>
+      {message}
+    </div>
+  );
+}
+
 export default function UserPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -103,6 +119,7 @@ export default function UserPage() {
   const [clipboard, setClipboard] = useState<{ node: Node; operation: 'copy' | 'cut' } | null>(null);
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
 
   // Helper to sanitize email for filename
   function emailToFilename(email: string) {
@@ -343,6 +360,13 @@ export default function UserPage() {
               operation: e.key === 'y' ? 'copy' : 'cut' 
             });
             
+            setToast({ 
+              message: e.key === 'y' 
+                ? `Copied ${nodes.length} nodes` 
+                : `Cut ${nodes.length} nodes`, 
+              type: 'success' 
+            });
+            
             if (e.key === 'x') {
               // Remove all selected nodes
               setTree(oldTree => {
@@ -363,10 +387,17 @@ export default function UserPage() {
             }
           }
         } else {
-          // Handle single node (existing code)
+          // Handle single node
           const found = findNodeById(tree, selectedId);
           if (found) {
             setClipboard({ node: structuredClone(found.node), operation: e.key === 'y' ? 'copy' : 'cut' });
+            setToast({ 
+              message: e.key === 'y' 
+                ? `Copied: ${found.node.text}` 
+                : `Cut: ${found.node.text}`, 
+              type: 'success' 
+            });
+            
             if (e.key === 'x') {
               setTree(oldTree => {
                 if (!oldTree) return oldTree;
@@ -393,6 +424,7 @@ export default function UserPage() {
       if (e.key === "p" || e.key === "P") {
         e.preventDefault();
         if (!tree || !clipboard) return;
+        
         setTree(oldTree => {
           if (!oldTree) return oldTree;
           const copy = structuredClone(oldTree);
@@ -407,15 +439,24 @@ export default function UserPage() {
             if (found.parent) {
               const idx = found.parent.children.findIndex((n) => n.id === selectedId);
               found.parent.children.splice(idx + 1, 0, newNode);
+              setToast({ 
+                message: `Pasted after: ${found.node.text}`, 
+                type: 'success' 
+              });
             }
           } else {
             // Paste as child
             found.node.children.push(newNode);
+            setToast({ 
+              message: `Pasted as child of: ${found.node.text}`, 
+              type: 'success' 
+            });
           }
           
           // If it was a cut operation, clear the clipboard
           if (clipboard.operation === 'cut') {
             setClipboard(null);
+            setToast({ message: 'Cut operation completed', type: 'info' });
           }
           
           return copy;
@@ -935,6 +976,14 @@ export default function UserPage() {
             <div className="text-xs text-gray-400 mt-2">Use ↑/↓ to navigate, Enter to select, Esc to close</div>
           </div>
         </div>
+      )}
+      {/* Toast Notification */}
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
       )}
       {/* Mindmap Section */}
       <div className="flex flex-col items-center">
