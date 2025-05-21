@@ -15,6 +15,13 @@ type Node = {
   checked?: boolean;
 };
 
+interface Mindmap {
+  id: string;
+  title: string;
+  is_public: boolean;
+  owner_name?: string;
+}
+
 function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -120,6 +127,14 @@ export default function UserPage() {
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
+  const [mindmaps, setMindmaps] = useState<Mindmap[]>([]);
+  const [selectedMindmap, setSelectedMindmap] = useState<Mindmap | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [userPlan, setUserPlan] = useState<string>("free");
+  const [showPublicMindmaps, setShowPublicMindmaps] = useState(false);
+  const [publicMindmaps, setPublicMindmaps] = useState<Mindmap[]>([]);
 
   // Helper to sanitize email for filename
   function emailToFilename(email: string) {
@@ -169,6 +184,70 @@ export default function UserPage() {
 
   useEffect(() => {
     if (!user) router.push("/login");
+  }, [user, router]);
+
+  useEffect(() => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    // Load user plan
+    fetch("/api.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "get_user_plan",
+        email: user
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.plan) {
+          setUserPlan(data.plan);
+        }
+      })
+      .catch((err) => {
+        console.error("Error loading user plan:", err);
+      });
+
+    // Load user's mindmaps
+    fetch("/api.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "get_mindmaps",
+        email: user
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.mindmaps) {
+          setMindmaps(data.mindmaps);
+        }
+      })
+      .catch((err) => {
+        console.error("Error loading mindmaps:", err);
+        setError("Failed to load mindmaps");
+      });
+
+    // Load public mindmaps
+    fetch("/api.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "get_public_mindmaps"
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.mindmaps) {
+          setPublicMindmaps(data.mindmaps);
+        }
+      })
+      .catch((err) => {
+        console.error("Error loading public mindmaps:", err);
+      });
   }, [user, router]);
 
   // Load mindmap for user
@@ -880,138 +959,205 @@ export default function UserPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header Bar */}
-      <div className="w-full bg-white shadow flex items-center justify-between px-8 py-4 mb-8">
-        <div>
-          <span className="text-xl font-bold text-gray-900 mr-4">Welcome, {user.name}!</span>
-          <span className="text-gray-700">Email: {user.email}</span>
-        </div>
-        <button
-          onClick={logout}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          Logout
-        </button>
-      </div>
-      {/* Public Notice for Free Users */}
-      <div className="max-w-2xl mx-auto mb-4 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-900 rounded">
-        <b>Notice:</b> Free user mindmaps are <b>public</b>. Upgrade for private mindmaps.
-        {selectedNodes.size > 1 && (
-          <div className="mt-2">
-            <b>Multiple nodes selected:</b> {selectedNodes.size} nodes
-            <div className="text-sm mt-1">
-              Use Shift+Click for sequential selection<br />
-              Use Ctrl/Cmd+Click for random selection
+      <nav className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            <div className="flex">
+              <div className="flex-shrink-0 flex items-center">
+                <h1 className="text-xl font-bold text-gray-900">Heartbeat</h1>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-      {/* Help icon */}
-      <button
-        className="absolute top-4 right-4 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
-        onClick={() => setShowHelp(true)}
-        aria-label="Show help"
-      >
-        ?
-      </button>
-      {showHelp && <HelpCard onClose={() => setShowHelp(false)} />}
-      {/* Search icon */}
-      <button
-        className="absolute top-4 right-16 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
-        onClick={() => {
-          setSearchOpen(true);
-          setTimeout(() => searchInputRef.current?.focus(), 0);
-        }}
-        aria-label="Search nodes"
-      >
-        🔍
-      </button>
-      {/* Search Modal/Dropdown */}
-      {searchOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-20">
-          <div className="bg-white rounded-xl shadow-lg mt-32 w-full max-w-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <input
-                ref={searchInputRef}
-                value={searchInput}
-                onChange={e => setSearchInput(e.target.value)}
-                className="flex-1 border px-4 py-2 rounded text-lg text-black"
-                placeholder="Search nodes..."
-                onKeyDown={e => {
-                  if (e.key === "Enter" && searchResults[searchIndex]) {
-                    setZoomedNodeId(searchResults[searchIndex].id);
-                    setSelectedId(searchResults[searchIndex].id);
-                    setSearchOpen(false);
-                    setSearchInput("");
-                    setSearchResults([]);
-                  } else if (e.key === "ArrowDown") {
-                    setSearchIndex(i => Math.min(i + 1, searchResults.length - 1));
-                    e.preventDefault();
-                  } else if (e.key === "ArrowUp") {
-                    setSearchIndex(i => Math.max(i - 1, 0));
-                    e.preventDefault();
-                  } else if (e.key === "Escape") {
-                    setSearchOpen(false);
-                    setSearchInput("");
-                    setSearchResults([]);
-                  }
-                  e.stopPropagation();
-                }}
-              />
+            <div className="flex items-center">
+              <div className="mr-4">
+                <span className="text-sm text-gray-500">Plan: </span>
+                <span className="text-sm font-medium text-gray-900">
+                  {userPlan === "premium" ? "Premium" : "Free"}
+                </span>
+              </div>
               <button
-                onClick={() => {
-                  setSearchOpen(false);
-                  setSearchInput("");
-                  setSearchResults([]);
-                }}
-                className="text-gray-500 hover:text-gray-700"
+                onClick={logout}
+                className="ml-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
               >
-                ✕
+                Logout
               </button>
             </div>
-            <div className="max-h-60 overflow-y-auto">
-              {searchResults.length === 0 && searchInput && (
-                <div className="text-gray-400 px-2 py-1">No results</div>
-              )}
-              {searchResults.map((node, i) => (
+          </div>
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="px-4 py-6 sm:px-0">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">Your Mindmaps</h2>
+            <div className="flex space-x-4">
+              <button
+                onClick={() => setShowPublicMindmaps(!showPublicMindmaps)}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              >
+                {showPublicMindmaps ? "Show My Mindmaps" : "Show Public Mindmaps"}
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedMindmap(null);
+                  setIsEditing(true);
+                }}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+              >
+                New Mindmap
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-md">
+              {error}
+            </div>
+          )}
+
+          {showPublicMindmaps ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {publicMindmaps.map((mindmap) => (
                 <div
-                  key={node.id}
-                  className={`px-3 py-2 rounded cursor-pointer text-gray-900 ${i === searchIndex ? "bg-blue-100 text-black" : "hover:bg-gray-100"}`}
-                  onMouseDown={() => {
-                    setZoomedNodeId(node.id);
-                    setSelectedId(node.id);
-                    setSearchOpen(false);
-                    setSearchInput("");
-                    setSearchResults([]);
-                  }}
+                  key={mindmap.id}
+                  className="bg-white overflow-hidden shadow rounded-lg"
                 >
-                  <span className="block text-xs text-gray-500 mb-1">{getNodePathText(node.id)}</span>
-                  <span className="block font-medium">{node.text}</span>
+                  <div className="p-4">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      {mindmap.title}
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      By {mindmap.owner_name}
+                    </p>
+                    <div className="mt-4">
+                      <button
+                        onClick={() => {
+                          setSelectedMindmap(mindmap);
+                          setIsEditing(false);
+                        }}
+                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200"
+                      >
+                        View
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
-            <div className="text-xs text-gray-400 mt-2">Use ↑/↓ to navigate, Enter to select, Esc to close</div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {mindmaps.map((mindmap) => (
+                <div
+                  key={mindmap.id}
+                  className="bg-white overflow-hidden shadow rounded-lg"
+                >
+                  <div className="p-4">
+                    <h3 className="text-lg font-bold text-gray-900">
+                      {mindmap.title}
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {mindmap.is_public ? "Public" : "Private"}
+                    </p>
+                    <div className="mt-4 space-x-2">
+                      <button
+                        onClick={() => {
+                          setSelectedMindmap(mindmap);
+                          setIsEditing(true);
+                        }}
+                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Implement delete logic
+                        }}
+                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+
+      {selectedMindmap && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              {isEditing ? "Edit Mindmap" : "View Mindmap"}
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="title"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Title
+                </label>
+                <input
+                  type="text"
+                  id="title"
+                  value={selectedMindmap.title}
+                  onChange={(e) =>
+                    setSelectedMindmap({
+                      ...selectedMindmap,
+                      title: e.target.value,
+                    })
+                  }
+                  disabled={!isEditing}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+              {isEditing && (
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedMindmap.is_public}
+                      onChange={(e) =>
+                        setSelectedMindmap({
+                          ...selectedMindmap,
+                          is_public: e.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm text-gray-600">
+                      Make this mindmap public
+                    </span>
+                  </label>
+                </div>
+              )}
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setSelectedMindmap(null);
+                    setIsEditing(false);
+                  }}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  Close
+                </button>
+                {isEditing && (
+                  <button
+                    onClick={() => {
+                      // Implement save logic
+                    }}
+                    disabled={isSaving}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    {isSaving ? "Saving..." : "Save"}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
-      {/* Toast Notification */}
-      {toast && (
-        <Toast 
-          message={toast.message} 
-          type={toast.type} 
-          onClose={() => setToast(null)} 
-        />
-      )}
-      {/* Mindmap Section */}
-      <div className="flex flex-col items-center">
-        <div className="bg-white p-6 rounded shadow max-w-2xl w-full">
-          <h3 className="text-xl font-bold mb-4 text-gray-900">Your Mindmap</h3>
-          {renderBreadcrumb()}
-          <div>{tree && renderNode(zoomedNodeId ? findNodeById(tree, zoomedNodeId)!.node : tree)}</div>
-          {search && <div className="mt-4 text-xs text-gray-500">Searching for: <b>{search}</b></div>}
-        </div>
-      </div>
-      <Footer />
     </div>
   );
 } 
