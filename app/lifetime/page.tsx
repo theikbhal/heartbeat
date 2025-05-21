@@ -10,7 +10,7 @@ export default function LifetimeDealPage() {
           Support our development and enjoy all premium features!
         </p>
         <a
-          href="https://www.paypal.com/ncp/links/MCE7DCKLUWRPS"
+          href="https://www.paypal.com/ncp/payment/MCE7DCKLUWRPS"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-block bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-3 px-8 rounded-lg shadow transition text-lg border border-yellow-600 mb-4"
