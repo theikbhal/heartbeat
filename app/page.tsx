@@ -8,6 +8,31 @@ function HomeContent() {
   const { user } = useAuth();
   return (
     <div className="space-y-16">
+      {/* Navigation Header */}
+      <header className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex justify-between items-center">
+            <Link href="/" className="text-2xl font-bold text-blue-600">
+              Heartbeat
+            </Link>
+            <nav className="flex gap-6">
+              <Link href="/features" className="text-gray-600 hover:text-blue-600">
+                Features
+              </Link>
+              <Link href="/demo" className="text-gray-600 hover:text-blue-600">
+                Demo
+              </Link>
+              <Link href="/docs" className="text-gray-600 hover:text-blue-600">
+                Documentation
+              </Link>
+              <Link href="/lifetime" className="text-gray-600 hover:text-blue-600">
+                Lifetime Deal
+              </Link>
+            </nav>
+          </div>
+        </div>
+      </header>
+
       {/* Hero Section */}
       <section className="text-center space-y-8 py-20">
         <h1 className="text-5xl font-bold text-gray-900">
@@ -26,15 +51,9 @@ function HomeContent() {
           </Link>
           <Link 
             href="/demo" 
-            className="border border-blue-600 text-blue-600 px-8 py-3 rounded-lg font-medium hover:bg-blue-50 transition"
+            className="bg-green-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-green-700 transition"
           >
-            Try Demo
-          </Link>
-          <Link 
-            href="/demo" 
-            className="border border-gray-300 px-8 py-3 rounded-lg font-medium hover:bg-gray-50 transition"
-          >
-            Watch Demo
+            Try Live Demo
           </Link>
           <Link
             href="/lifetime"
