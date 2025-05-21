@@ -27,14 +27,14 @@ export default function RegisterForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-md mx-auto">
-      <h2 className="text-2xl font-bold mb-2">Register</h2>
+      <h2 className="text-2xl font-bold mb-2 text-gray-900">Register</h2>
       <input
         type="text"
         value={name}
         onChange={e => setName(e.target.value)}
         placeholder="Name"
         required
-        className="w-full border rounded px-3 py-2"
+        className="w-full border rounded px-3 py-2 text-gray-700 placeholder:text-black"
       />
       <input
         type="email"
@@ -42,7 +42,7 @@ export default function RegisterForm() {
         onChange={e => setEmail(e.target.value)}
         placeholder="Email"
         required
-        className="w-full border rounded px-3 py-2"
+        className="w-full border rounded px-3 py-2 text-gray-700 placeholder:text-black"
       />
       <input
         type="password"
@@ -50,7 +50,7 @@ export default function RegisterForm() {
         onChange={e => setPassword(e.target.value)}
         placeholder="Password"
         required
-        className="w-full border rounded px-3 py-2"
+        className="w-full border rounded px-3 py-2 text-gray-700 placeholder:text-black"
       />
       <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded" disabled={loading}>
         {loading ? "Registering..." : "Register"}
