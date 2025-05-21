@@ -207,6 +207,11 @@ export default function DemoPage() {
   const [showHelp, setShowHelp] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchResults, setSearchResults] = useState<Node[]>([]);
+  const [searchIndex, setSearchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Load from API on mount
   useEffect(() => {
@@ -248,6 +253,69 @@ export default function DemoPage() {
       inputRef.current.focus();
     }
   }, [mode, selectedId]);
+
+  // Ctrl+K to open search
+  useEffect(() => {
+    function handleGlobalKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      }
+      if (searchOpen) {
+        if (e.key === "Escape") {
+          setSearchOpen(false);
+          setSearchInput("");
+          setSearchResults([]);
+        }
+      }
+    }
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [searchOpen]);
+
+  // Search logic
+  useEffect(() => {
+    if (!searchOpen || !tree) return;
+    if (!searchInput) {
+      setSearchResults([]);
+      setSearchIndex(0);
+      return;
+    }
+    // Flatten tree and filter
+    const flat = flattenTree(tree);
+    const results = flat.filter(n => n.text.toLowerCase().includes(searchInput.toLowerCase()));
+    setSearchResults(results);
+    setSearchIndex(0);
+  }, [searchInput, searchOpen, tree]);
+
+  // Keyboard navigation in search dropdown
+  useEffect(() => {
+    if (!searchOpen) return;
+    function handleSearchKey(e: KeyboardEvent) {
+      if (e.key === "ArrowDown") {
+        setSearchIndex(i => Math.min(i + 1, searchResults.length - 1));
+        e.preventDefault();
+      } else if (e.key === "ArrowUp") {
+        setSearchIndex(i => Math.max(i - 1, 0));
+        e.preventDefault();
+      } else if (e.key === "Enter") {
+        if (searchResults[searchIndex]) {
+          setZoomedNodeId(searchResults[searchIndex].id);
+          setSelectedId(searchResults[searchIndex].id);
+          setSearchOpen(false);
+          setSearchInput("");
+          setSearchResults([]);
+        }
+      } else if (e.key === "Escape") {
+        setSearchOpen(false);
+        setSearchInput("");
+        setSearchResults([]);
+      }
+    }
+    window.addEventListener("keydown", handleSearchKey);
+    return () => window.removeEventListener("keydown", handleSearchKey);
+  }, [searchOpen, searchResults, searchIndex]);
 
   // Get path from root to a node
   function getNodePath(nodeId: string): Node[] {
@@ -536,6 +604,42 @@ export default function DemoPage() {
         {showImport && <ImportModal onImport={setTree} onClose={() => setShowImport(false)} />}
         <h1 className="text-2xl font-bold mb-4 text-black">Mindmap Demo (Keyboard Driven)</h1>
         {renderBreadcrumb()}
+        {/* Search Modal/Dropdown */}
+        {searchOpen && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-20">
+            <div className="bg-white rounded-xl shadow-lg mt-32 w-full max-w-lg p-4">
+              <input
+                ref={searchInputRef}
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                className="w-full border px-4 py-2 rounded text-lg mb-2 text-black"
+                placeholder="Search nodes..."
+                onKeyDown={e => e.stopPropagation()}
+              />
+              <div className="max-h-60 overflow-y-auto">
+                {searchResults.length === 0 && searchInput && (
+                  <div className="text-gray-400 px-2 py-1">No results</div>
+                )}
+                {searchResults.map((node, i) => (
+                  <div
+                    key={node.id}
+                    className={`px-3 py-2 rounded cursor-pointer ${i === searchIndex ? "bg-blue-100 text-blue-900" : "hover:bg-gray-100"}`}
+                    onMouseDown={() => {
+                      setZoomedNodeId(node.id);
+                      setSelectedId(node.id);
+                      setSearchOpen(false);
+                      setSearchInput("");
+                      setSearchResults([]);
+                    }}
+                  >
+                    {node.text}
+                  </div>
+                ))}
+              </div>
+              <div className="text-xs text-gray-400 mt-2">Use ↑/↓ to navigate, Enter to zoom, Esc to close</div>
+            </div>
+          </div>
+        )}
         <div>{renderNode(zoomedNodeId ? getNodeById(tree, zoomedNodeId)! : tree)}</div>
         {search && <div className="mt-4 text-xs text-gray-500">Searching for: <b>{search}</b></div>}
       </div>

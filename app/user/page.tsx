@@ -27,6 +27,11 @@ export default function UserPage() {
   const [editText, setEditText] = useState("");
   const [search, setSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchResults, setSearchResults] = useState<Node[]>([]);
+  const [searchIndex, setSearchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Helper to sanitize email for filename
   function emailToFilename(email: string) {
@@ -222,6 +227,69 @@ export default function UserPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [mode, selectedId, tree, search, zoomedNodeId]);
 
+  // Ctrl+K to open search
+  useEffect(() => {
+    function handleGlobalKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      }
+      if (searchOpen) {
+        if (e.key === "Escape") {
+          setSearchOpen(false);
+          setSearchInput("");
+          setSearchResults([]);
+        }
+      }
+    }
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [searchOpen]);
+
+  // Search logic
+  useEffect(() => {
+    if (!searchOpen || !tree) return;
+    if (!searchInput) {
+      setSearchResults([]);
+      setSearchIndex(0);
+      return;
+    }
+    // Flatten tree and filter
+    const flat = flattenTree(tree);
+    const results = flat.filter(n => n.text.toLowerCase().includes(searchInput.toLowerCase()));
+    setSearchResults(results);
+    setSearchIndex(0);
+  }, [searchInput, searchOpen, tree]);
+
+  // Keyboard navigation in search dropdown
+  useEffect(() => {
+    if (!searchOpen) return;
+    function handleSearchKey(e: KeyboardEvent) {
+      if (e.key === "ArrowDown") {
+        setSearchIndex(i => Math.min(i + 1, searchResults.length - 1));
+        e.preventDefault();
+      } else if (e.key === "ArrowUp") {
+        setSearchIndex(i => Math.max(i - 1, 0));
+        e.preventDefault();
+      } else if (e.key === "Enter") {
+        if (searchResults[searchIndex]) {
+          setZoomedNodeId(searchResults[searchIndex].id);
+          setSelectedId(searchResults[searchIndex].id);
+          setSearchOpen(false);
+          setSearchInput("");
+          setSearchResults([]);
+        }
+      } else if (e.key === "Escape") {
+        setSearchOpen(false);
+        setSearchInput("");
+        setSearchResults([]);
+      }
+    }
+    window.addEventListener("keydown", handleSearchKey);
+    return () => window.removeEventListener("keydown", handleSearchKey);
+  }, [searchOpen, searchResults, searchIndex]);
+
   // Helper: find node by id
   function findNodeById(tree: Node, id: string, parent: Node | null = null): { node: Node; parent: Node | null } | null {
     if (tree.id === id) return { node: tree, parent };
@@ -364,6 +432,43 @@ export default function UserPage() {
           Logout
         </button>
       </div>
+      {/* Search Modal/Dropdown */}
+      {searchOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-20">
+          <div className="bg-white rounded-xl shadow-lg mt-32 w-full max-w-lg p-4">
+            <input
+              ref={searchInputRef}
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              className="w-full border px-4 py-2 rounded text-lg mb-2 text-black"
+              placeholder="Search nodes..."
+              onKeyDown={e => e.stopPropagation()}
+            />
+            <div className="max-h-60 overflow-y-auto">
+              {searchResults.length === 0 && searchInput && (
+                <div className="text-gray-400 px-2 py-1">No results</div>
+              )}
+              {searchResults.map((node, i) => (
+                <div
+                  key={node.id}
+                  className={`px-3 py-2 rounded cursor-pointer ${i === searchIndex ? "bg-blue-100 text-blue-900" : "hover:bg-gray-100"}`}
+                  onMouseDown={() => {
+                    setZoomedNodeId(node.id);
+                    setSelectedId(node.id);
+                    setSearchOpen(false);
+                    setSearchInput("");
+                    setSearchResults([]);
+                  }}
+                >
+                  {node.text}
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-gray-400 mt-2">Use ↑/↓ to navigate, Enter to zoom, Esc to close</div>
+          </div>
+        </div>
+      )}
+      {/* Mindmap Section */}
       <div className="flex flex-col items-center">
         <div className="bg-white p-6 rounded shadow max-w-2xl w-full">
           <h3 className="text-xl font-bold mb-4 text-gray-900">Your Mindmap</h3>
