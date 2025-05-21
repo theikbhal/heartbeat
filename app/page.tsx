@@ -15,7 +15,7 @@ function HomeContent() {
             <Link href="/" className="text-2xl font-bold text-blue-600">
               Heartbeat
             </Link>
-            <nav className="flex gap-6">
+            <nav className="flex gap-6 items-center">
               <Link href="/features" className="text-gray-600 hover:text-blue-600">
                 Features
               </Link>
@@ -28,6 +28,16 @@ function HomeContent() {
               <Link href="/lifetime" className="text-gray-600 hover:text-blue-600">
                 Lifetime Deal
               </Link>
+              {!user && (
+                <>
+                  <Link href="/login" className="text-gray-600 hover:text-blue-600">
+                    Login
+                  </Link>
+                  <Link href="/register" className="text-gray-600 hover:text-blue-600">
+                    Register
+                  </Link>
+                </>
+              )}
             </nav>
           </div>
         </div>
@@ -61,22 +71,6 @@ function HomeContent() {
           >
             Lifetime Deal
           </Link>
-          {!user && (
-            <>
-              <Link 
-                href="/login" 
-                className="border border-gray-300 px-8 py-3 rounded-lg font-medium hover:bg-gray-50 transition"
-              >
-                Login
-              </Link>
-              <Link 
-                href="/register" 
-                className="border border-blue-600 text-blue-600 px-8 py-3 rounded-lg font-medium hover:bg-blue-50 transition"
-              >
-                Register
-              </Link>
-            </>
-          )}
         </div>
       </section>
 
