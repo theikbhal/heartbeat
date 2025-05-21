@@ -1,12 +1,9 @@
-import { AuthProvider } from '../components/AuthProvider';
 import RegisterForm from '../components/RegisterForm';
 
 export default function RegisterPage() {
   return (
-    <AuthProvider>
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <RegisterForm />
-      </div>
-    </AuthProvider>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <RegisterForm />
+    </div>
   );
 } 

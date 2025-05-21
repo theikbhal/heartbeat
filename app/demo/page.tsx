@@ -199,6 +199,7 @@ export default function DemoPage() {
     ],
   });
   const [selectedId, setSelectedId] = useState<string>("root");
+  const [zoomedNodeId, setZoomedNodeId] = useState<string | null>(null);
   const [mode, setMode] = useState<"command" | "edit">("command");
   const [editText, setEditText] = useState("");
   const [search, setSearch] = useState("");
@@ -247,6 +248,26 @@ export default function DemoPage() {
       inputRef.current.focus();
     }
   }, [mode, selectedId]);
+
+  // Get path from root to a node
+  function getNodePath(nodeId: string): Node[] {
+    const path: Node[] = [];
+    function findPath(currentNode: Node, targetId: string): boolean {
+      if (currentNode.id === targetId) {
+        path.push(currentNode);
+        return true;
+      }
+      for (const child of currentNode.children) {
+        if (findPath(child, targetId)) {
+          path.unshift(currentNode);
+          return true;
+        }
+      }
+      return false;
+    }
+    findPath(tree, nodeId);
+    return path;
+  }
 
   // Keyboard handler
   useEffect(() => {
@@ -339,16 +360,51 @@ export default function DemoPage() {
         });
         return;
       }
+      if (e.key === "z") {
+        e.preventDefault();
+        if (zoomedNodeId) {
+          setZoomedNodeId(null);
+        } else {
+          setZoomedNodeId(selectedId);
+        }
+        return;
+      }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mode, selectedId, tree, search]);
+  }, [mode, selectedId, tree, search, zoomedNodeId]);
 
+  // Render breadcrumb navigation
+  function renderBreadcrumb() {
+    if (!zoomedNodeId) return null;
+    const path = getNodePath(zoomedNodeId);
+    return (
+      <div className="flex items-center gap-2 mb-4 text-sm text-gray-600">
+        {path.map((node, index) => (
+          <React.Fragment key={node.id}>
+            <button
+              onClick={() => setZoomedNodeId(node.id)}
+              className="hover:text-blue-600 hover:underline"
+            >
+              {node.text}
+            </button>
+            {index < path.length - 1 && <span>›</span>}
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  }
 
   // Render tree recursively
   function renderNode(node: Node) {
     const isSelected = node.id === selectedId;
     const match = search && node.text.toLowerCase().includes(search.toLowerCase());
+    
+    // If zoomed, only render the zoomed node and its descendants
+    if (zoomedNodeId && !getNodePath(node.id).some(n => n.id === zoomedNodeId)) {
+      return null;
+    }
+
     return (
       <div key={node.id} style={{ marginLeft: 24, borderLeft: "1px dotted #ccc" }}>
         <div
@@ -408,40 +464,44 @@ export default function DemoPage() {
                     }
                     return copy;
                   });
-                } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-                  e.preventDefault();
-                  let nextId = selectedId;
-                  setTree((oldTree) => {
-                    const copy = structuredClone(oldTree);
-                    const found = findNodeById(copy, selectedId);
-                    if (found) found.node.text = editText;
-                    // After saving, get the new flat tree and move selection
-                    const flat = flattenTree(copy);
-                    const idx = flat.findIndex((n) => n.id === selectedId);
-                    let nextIdx = idx;
-                    if (e.key === "ArrowDown" && idx < flat.length - 1) nextIdx = idx + 1;
-                    if (e.key === "ArrowUp" && idx > 0) nextIdx = idx - 1;
-                    nextId = flat[nextIdx].id;
-                    return copy;
-                  });
-                  setMode("command");
-                  setTimeout(() => setSelectedId(nextId), 0);
                 }
               }}
             />
           ) : (
-            <>
-              {node.text} {node.children.length > 0 && (
-                <span style={{ fontSize: 12, color: "#888" }}>
-                  [{node.collapsed ? "+" : "-"}]
-                </span>
-              )}
-            </>
+            <div className="flex items-center gap-2">
+              <span>
+                {node.text} {node.children.length > 0 && (
+                  <span style={{ fontSize: 12, color: "#888" }}>
+                    [{node.collapsed ? "+" : "-"}]
+                  </span>
+                )}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setZoomedNodeId(node.id);
+                }}
+                className="text-gray-400 hover:text-blue-600"
+                title="Zoom in (z)"
+              >
+                🔍
+              </button>
+            </div>
           )}
         </div>
         {!node.collapsed && node.children.map(renderNode)}
       </div>
     );
+  }
+
+  // Helper to get node by id
+  function getNodeById(node: Node, id: string): Node | null {
+    if (node.id === id) return node;
+    for (const child of node.children) {
+      const found = getNodeById(child, id);
+      if (found) return found;
+    }
+    return null;
   }
 
   return (
@@ -475,7 +535,8 @@ export default function DemoPage() {
         </button>
         {showImport && <ImportModal onImport={setTree} onClose={() => setShowImport(false)} />}
         <h1 className="text-2xl font-bold mb-4 text-black">Mindmap Demo (Keyboard Driven)</h1>
-        <div>{renderNode(tree)}</div>
+        {renderBreadcrumb()}
+        <div>{renderNode(zoomedNodeId ? getNodeById(tree, zoomedNodeId)! : tree)}</div>
         {search && <div className="mt-4 text-xs text-gray-500">Searching for: <b>{search}</b></div>}
       </div>
     </div>

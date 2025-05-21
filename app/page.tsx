@@ -1,3 +1,4 @@
+"use client";
 import Link from 'next/link'
 import { EmailSubscribe } from './components/EmailSubscribe'
 import { AuthProvider, useAuth } from './components/AuthProvider'
@@ -33,6 +34,12 @@ function HomeContent() {
             className="border border-gray-300 px-8 py-3 rounded-lg font-medium hover:bg-gray-50 transition"
           >
             Watch Demo
+          </Link>
+          <Link
+            href="/lifetime"
+            className="bg-yellow-400 text-black px-8 py-3 rounded-lg font-bold hover:bg-yellow-300 transition border border-yellow-500"
+          >
+            Lifetime Deal
           </Link>
           {!user && (
             <>
