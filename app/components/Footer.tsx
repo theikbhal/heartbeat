@@ -16,8 +16,20 @@ export default function Footer() {
             <Link href="/docs" className="text-gray-600 hover:text-blue-600">
               Documentation
             </Link>
-            <Link href="/lifetime" className="text-gray-600 hover:text-blue-600">
-              Lifetime Deal
+            <Link href="/shortcuts" className="text-gray-600 hover:text-blue-600">
+              Shortcuts
+            </Link>
+            <Link href="/roadmap" className="text-gray-600 hover:text-blue-600">
+              Roadmap
+            </Link>
+            <Link href="/bugs" className="text-gray-600 hover:text-blue-600">
+              Bug List
+            </Link>
+            <Link href="/beta" className="text-gray-600 hover:text-blue-600">
+              Beta User
+            </Link>
+            <Link href="/" className="text-gray-600 hover:text-blue-600">
+              Landing
             </Link>
           </div>
         </div>

@@ -41,9 +41,9 @@ export default function RoadmapPage() {
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-4xl mx-auto px-4">
         <h1 className="text-4xl font-bold text-gray-900 mb-8">Product Roadmap</h1>
-        <p className="mb-8 text-gray-600">See what's planned, in progress, and already shipped for Heartbeat.</p>
+        <p className="mb-8 text-gray-600">See what&apos;s planned, in progress, and already shipped for Heartbeat.</p>
         <div className="grid md:grid-cols-3 gap-8">
-          {roadmap.map((section, idx) => (
+          {roadmap.map((section) => (
             <div key={section.section} className="bg-white rounded-lg shadow p-6">
               <h2 className="text-2xl font-semibold mb-4 text-blue-700">{section.section}</h2>
               <ul className="list-disc list-inside space-y-2">

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import React from "react";
+import Image from "next/image";
 
 const LOCAL_STORAGE_KEY = "mindmap-demo-tree";
 const API_URL = "https://tawhid.in/tiny/heartbeat/api.php";
@@ -539,7 +540,7 @@ export default function DemoPage() {
     } else if (isImageUrl(node.text) && isUrl(node.text)) {
       nodeContent = (
         <a href={node.text} target="_blank" rel="noopener noreferrer">
-          <img src={node.text} alt="node-img" style={{ maxWidth: 300, maxHeight: 200, borderRadius: 8, display: 'block', margin: '4px 0' }} />
+          <Image src={node.text} alt="node-img" width={300} height={200} style={{ maxWidth: 300, maxHeight: 200, borderRadius: 8, display: 'block', margin: '4px 0' }} />
         </a>
       );
     } else if (isUrl(node.text)) {

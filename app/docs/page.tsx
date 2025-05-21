@@ -26,7 +26,9 @@ export default function DocsPage() {
         "Arrow keys - Navigate between nodes",
         "Ctrl+K - Open search",
         "Enter - Confirm edit or search result",
-        "Escape - Cancel edit or close search"
+        "Escape - Cancel edit or close search",
+        "Tab - Indent node (make child of previous sibling)",
+        "Shift+Tab - Outdent node (make sibling of parent)"
       ]
     },
     {

@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../components/AuthProvider";
 import Footer from "../components/Footer";
+import Image from "next/image";
 
 // Node type (copied from demo page)
 type Node = {
@@ -35,6 +36,17 @@ function isUrl(text: string): boolean {
 // Helper: check if string is an image link
 function isImageUrl(text: string): boolean {
   return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(text);
+}
+
+// Move findNodeById outside the component
+function findNodeById(tree: Node | null, id: string, parent: Node | null = null): { node: Node; parent: Node | null } | null {
+  if (!tree) return null;
+  if (tree.id === id) return { node: tree, parent };
+  for (const child of tree.children) {
+    const found = findNodeById(child, id, tree);
+    if (found) return found;
+  }
+  return null;
 }
 
 export default function UserPage() {
@@ -335,17 +347,6 @@ export default function UserPage() {
     return () => window.removeEventListener("keydown", handleSearchKey);
   }, [searchOpen, searchResults, searchIndex]);
 
-  // Helper: find node by id
-  function findNodeById(tree: Node | null, id: string, parent: Node | null = null): { node: Node; parent: Node | null } | null {
-    if (!tree) return null;
-    if (tree.id === id) return { node: tree, parent };
-    for (const child of tree.children) {
-      const found = findNodeById(child, id, tree);
-      if (found) return found;
-    }
-    return null;
-  }
-
   // Render breadcrumb navigation
   function renderBreadcrumb() {
     if (!zoomedNodeId || !tree) return null;
@@ -402,7 +403,7 @@ export default function UserPage() {
     } else if (isImageUrl(node.text) && isUrl(node.text)) {
       nodeContent = (
         <a href={node.text} target="_blank" rel="noopener noreferrer">
-          <img src={node.text} alt="node-img" style={{ maxWidth: 300, maxHeight: 200, borderRadius: 8, display: 'block', margin: '4px 0' }} />
+          <Image src={node.text} alt="node-img" width={300} height={200} style={{ maxWidth: 300, maxHeight: 200, borderRadius: 8, display: 'block', margin: '4px 0' }} />
         </a>
       );
     } else if (isUrl(node.text)) {

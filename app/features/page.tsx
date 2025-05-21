@@ -13,7 +13,9 @@ export default function FeaturesPage() {
         "Delete nodes (D key)",
         "Toggle collapse (T key)",
         "Find nodes (F key)",
-        "Navigate with arrow keys"
+        "Navigate with arrow keys",
+        "Indent node (Tab)",
+        "Outdent node (Shift+Tab)"
       ]
     },
     {
