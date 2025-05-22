@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../components/AuthProvider";
 import Footer from "../components/Footer";
 import Image from "next/image";
+import { HistoryManager, NodeData } from '../utils/HistoryManager';
+import { NodeStyleControls } from '../components/NodeStyleControls';
 
 // Node type (copied from demo page)
 type Node = {
@@ -21,6 +23,9 @@ interface Mindmap {
   is_public: boolean;
   owner_name?: string;
 }
+
+// Add ToastType definition
+type ToastType = 'success' | 'info' | 'error';
 
 function generateId() {
   return Math.random().toString(36).slice(2, 10);
@@ -91,7 +96,7 @@ function HelpCard({ onClose }: { onClose: () => void }) {
 }
 
 // Add Toast component
-function Toast({ message, type, onClose }: { message: string; type: 'success' | 'info'; onClose: () => void }) {
+function Toast({ message, type, onClose }: { message: string; type: ToastType; onClose: () => void }) {
   useEffect(() => {
     const timer = setTimeout(onClose, 2000);
     return () => clearTimeout(timer);
@@ -99,7 +104,7 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
 
   return (
     <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-white ${
-      type === 'success' ? 'bg-green-500' : 'bg-blue-500'
+      type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500'
     }`}>
       {message}
     </div>
@@ -109,24 +114,25 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
 export default function UserPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
-  const [tree, setTree] = useState<Node | null>(null);
+  const [tree, setTree] = useState<NodeData | null>(null);
   const [selectedId, setSelectedId] = useState<string>("root");
-  const [zoomedNodeId, setZoomedNodeId] = useState<string | null>(null);
+  const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set(["root"]));
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"command" | "edit">("command");
   const [editText, setEditText] = useState("");
   const [search, setSearch] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchInput, setSearchInput] = useState("");
-  const [searchResults, setSearchResults] = useState<Node[]>([]);
-  const [searchIndex, setSearchIndex] = useState(0);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [zoomedNodeId, setZoomedNodeId] = useState<string | null>(null);
+  const [clipboard, setClipboard] = useState<{ nodes: NodeData[], operation: 'copy' | 'cut' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const historyManager = useRef(new HistoryManager()).current;
+  const [showStyleControls, setShowStyleControls] = useState(false);
   const [expandedMap, setExpandedMap] = useState<{ [id: string]: boolean }>({});
   const [showHelp, setShowHelp] = useState(false);
-  const [clipboard, setClipboard] = useState<{ nodes: Node[]; operation: 'copy' | 'cut' } | null>(null);
-  const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
-  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchResults, setSearchResults] = useState<NodeData[]>([]);
+  const [searchIndex, setSearchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [mindmaps, setMindmaps] = useState<Mindmap[]>([]);
   const [selectedMindmap, setSelectedMindmap] = useState<Mindmap | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -135,6 +141,7 @@ export default function UserPage() {
   const [userPlan, setUserPlan] = useState<string>("free");
   const [showPublicMindmaps, setShowPublicMindmaps] = useState(false);
   const [publicMindmaps, setPublicMindmaps] = useState<Mindmap[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Helper to sanitize email for filename
   function emailToFilename(email: string) {
@@ -142,9 +149,9 @@ export default function UserPage() {
   }
 
   // Get path from root to a node
-  function getNodePath(nodeId: string): Node[] {
-    const path: Node[] = [];
-    function findPath(currentNode: Node, targetId: string): boolean {
+  function getNodePath(nodeId: string): NodeData[] {
+    const path: NodeData[] = [];
+    function findPath(currentNode: NodeData, targetId: string): boolean {
       if (currentNode.id === targetId) {
         path.push(currentNode);
         return true;
@@ -162,10 +169,10 @@ export default function UserPage() {
   }
 
   // Flatten tree for navigation
-  function flattenTree(tree: Node | null): Node[] {
+  function flattenTree(tree: NodeData | null): NodeData[] {
     if (!tree) return [];
-    const result: Node[] = [];
-    function traverse(node: Node) {
+    const result: NodeData[] = [];
+    function traverse(node: NodeData) {
       result.push(node);
       if (!node.collapsed) {
         for (const child of node.children) traverse(child);
@@ -423,14 +430,14 @@ export default function UserPage() {
         
         if (selectedNodes.size > 1) {
           // Handle multiple nodes
-          const nodes: Node[] = [];
+          const nodes: NodeData[] = [];
           selectedNodes.forEach(id => {
             const found = findNodeById(tree, id);
             if (found) {
               // Create a deep copy of the node
               const deepCopy = structuredClone(found.node);
               // Generate new IDs for the node and all its children
-              function generateNewIds(node: Node) {
+              function generateNewIds(node: NodeData) {
                 node.id = generateId();
                 node.children.forEach(generateNewIds);
               }
@@ -478,7 +485,7 @@ export default function UserPage() {
             // Create a deep copy of the node
             const deepCopy = structuredClone(found.node);
             // Generate new IDs for the node and all its children
-            function generateNewIds(node: Node) {
+            function generateNewIds(node: NodeData) {
               node.id = generateId();
               node.children.forEach(generateNewIds);
             }
@@ -721,7 +728,7 @@ export default function UserPage() {
   }
 
   // Render tree recursively
-  function renderNode(node: Node) {
+  function renderNode(node: NodeData) {
     const isSelected = selectedNodes.has(node.id);
     const match = search && node.text.toLowerCase().includes(search.toLowerCase());
     const youtubeId = getYouTubeId(node.text);

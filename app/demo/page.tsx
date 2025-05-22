@@ -15,23 +15,9 @@ type Node = NodeData;
 // Update toast type
 type ToastType = 'success' | 'info' | 'error';
 
-// Update node operation type
-type NodeOperation = {
-  type: 'add' | 'delete' | 'edit' | 'move';
-  nodeId: string;
-  parentId?: string;
-  data?: NodeData;
-  oldData?: { text: string };
-  newData?: { text: string };
-  oldParentId?: string;
-  newParentId?: string;
-  oldIndex?: number;
-  newIndex?: number;
-};
-
-// Add type guard for NodeData
-function isNodeData(value: any): value is NodeData {
-  return value && typeof value === 'object' && 'id' in value && 'text' in value;
+// Fix isNodeData function
+function isNodeData(value: unknown): value is NodeData {
+  return Boolean(value && typeof value === 'object' && 'id' in value && 'text' in value);
 }
 
 function generateId() {
@@ -239,7 +225,7 @@ function Toast({ message, type, onClose }: { message: string; type: ToastType; o
   );
 }
 
-// Update node operation functions with strict types and null checks
+// Add type assertions in node operations
 const addNode = (tree: Node, parentId: string, data: NodeData): Node => {
   if (!isNodeData(tree)) throw new Error('Invalid tree');
   if (tree.id === parentId) {
@@ -250,7 +236,7 @@ const addNode = (tree: Node, parentId: string, data: NodeData): Node => {
   }
   return {
     ...tree,
-    children: tree.children.map(child => addNode(child, parentId, data))
+    children: tree.children.map(child => addNode(child as Node, parentId, data))
   };
 };
 
@@ -263,7 +249,7 @@ const deleteNode = (tree: Node, nodeId: string): Node => {
     ...tree,
     children: tree.children
       .filter(child => child.id !== nodeId)
-      .map(child => deleteNode(child, nodeId))
+      .map(child => deleteNode(child as Node, nodeId))
   };
 };
 
@@ -277,7 +263,7 @@ const editNode = (tree: Node, nodeId: string, newText: string): Node => {
   }
   return {
     ...tree,
-    children: tree.children.map(child => editNode(child, nodeId, newText))
+    children: tree.children.map(child => editNode(child as Node, nodeId, newText))
   };
 };
 
@@ -287,7 +273,7 @@ const moveNode = (tree: Node, nodeId: string, newParentId: string, newIndex: num
   const findNode = (node: Node): Node | null => {
     if (node.id === nodeId) return node;
     for (const child of node.children) {
-      const found = findNode(child);
+      const found = findNode(child as Node);
       if (found) return found;
     }
     return null;
@@ -302,7 +288,7 @@ const moveNode = (tree: Node, nodeId: string, newParentId: string, newIndex: num
       ...node,
       children: node.children
         .filter(child => child.id !== nodeId)
-        .map(child => removeNode(child))
+        .map(child => removeNode(child as Node))
     };
   };
 
@@ -318,7 +304,7 @@ const moveNode = (tree: Node, nodeId: string, newParentId: string, newIndex: num
     }
     return {
       ...node,
-      children: node.children.map(child => addNodeToNewPosition(child))
+      children: node.children.map(child => addNodeToNewPosition(child as Node))
     };
   };
 
@@ -332,7 +318,6 @@ export default function DemoPage() {
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set(["root"]));
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"command" | "edit">("command");
-  const [editText, setEditText] = useState("");
   const [search, setSearch] = useState("");
   const [zoomedNodeId, setZoomedNodeId] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<{ nodes: NodeData[], operation: 'copy' | 'cut' } | null>(null);
@@ -755,7 +740,6 @@ export default function DemoPage() {
         e.preventDefault();
         setMode("edit");
         const node = findNodeById(tree as Node, selectedId)?.node;
-        setEditText(node?.text || "");
         return;
       }
       if (e.key === "s") {
