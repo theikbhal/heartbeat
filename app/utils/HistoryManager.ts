@@ -1,8 +1,28 @@
 // Types for history operations
+export interface NodeData {
+  id: string;
+  text: string;
+  children: NodeData[];
+  collapsed?: boolean;
+  type?: 'check';
+  checked?: boolean;
+  style?: {
+    backgroundColor?: string;
+    textColor?: string;
+    fontSize?: number;
+    fontWeight?: 'normal' | 'bold';
+    fontStyle?: 'normal' | 'italic';
+    borderColor?: string;
+    borderWidth?: number;
+    borderRadius?: number;
+    padding?: number;
+  };
+}
+
 export type NodeOperation = 
-  | { type: 'add'; nodeId: string; parentId: string; data: any }
-  | { type: 'delete'; nodeId: string; parentId: string; data: any }
-  | { type: 'edit'; nodeId: string; oldData: any; newData: any }
+  | { type: 'add'; nodeId: string; parentId: string; data: NodeData }
+  | { type: 'delete'; nodeId: string; parentId: string; data: NodeData }
+  | { type: 'edit'; nodeId: string; oldData: { text: string }; newData: { text: string } }
   | { type: 'move'; nodeId: string; oldParentId: string; newParentId: string; oldIndex: number; newIndex: number }
   | { type: 'group'; operation: 'start' | 'end' };
 

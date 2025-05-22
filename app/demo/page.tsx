@@ -1,21 +1,32 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import React from "react";
 import Image from "next/image";
-import { HistoryManager, NodeOperation } from '../utils/HistoryManager';
+import { HistoryManager, NodeData } from '../utils/HistoryManager';
+import { NodeStyleControls } from '../components/NodeStyleControls';
 
 const LOCAL_STORAGE_KEY = "mindmap-demo-tree";
 const API_URL = "https://tawhid.in/tiny/heartbeat/api.php";
 const API_FILENAME = "demo";
 
 // Node type
-type Node = {
-  id: string;
-  text: string;
-  children: Node[];
-  collapsed?: boolean;
-  type?: 'check';
-  checked?: boolean;
+type Node = NodeData;
+
+// Update toast type
+type ToastType = 'success' | 'info' | 'error';
+
+// Update node operation type
+type NodeOperation = {
+  type: 'add' | 'delete' | 'edit' | 'move';
+  nodeId: string;
+  parentId?: string;
+  data?: NodeData;
+  oldData?: { text: string };
+  newData?: { text: string };
+  oldParentId?: string;
+  newParentId?: string;
+  oldIndex?: number;
+  newIndex?: number;
 };
 
 function generateId() {
@@ -208,7 +219,7 @@ function isImageUrl(text: string): boolean {
 }
 
 // Add Toast component
-function Toast({ message, type, onClose }: { message: string; type: 'success' | 'info'; onClose: () => void }) {
+function Toast({ message, type, onClose }: { message: string; type: ToastType; onClose: () => void }) {
   useEffect(() => {
     const timer = setTimeout(onClose, 2000);
     return () => clearTimeout(timer);
@@ -216,37 +227,221 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
 
   return (
     <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg text-white ${
-      type === 'success' ? 'bg-green-500' : 'bg-blue-500'
+      type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500'
     }`}>
       {message}
     </div>
   );
 }
 
+// Update node operation functions with strict types
+const addNode = (tree: Node, parentId: string, data: NodeData): Node => {
+  if (tree.id === parentId) {
+    return {
+      ...tree,
+      children: [...tree.children, data]
+    };
+  }
+  return {
+    ...tree,
+    children: tree.children.map(child => addNode(child, parentId, data))
+  };
+};
+
+const deleteNode = (tree: Node, nodeId: string): Node => {
+  if (tree.id === nodeId) {
+    throw new Error('Cannot delete root node');
+  }
+  return {
+    ...tree,
+    children: tree.children
+      .filter(child => child.id !== nodeId)
+      .map(child => deleteNode(child, nodeId))
+  };
+};
+
+const editNode = (tree: Node, nodeId: string, newText: string): Node => {
+  if (tree.id === nodeId) {
+    return {
+      ...tree,
+      text: newText
+    };
+  }
+  return {
+    ...tree,
+    children: tree.children.map(child => editNode(child, nodeId, newText))
+  };
+};
+
+const moveNode = (tree: Node, nodeId: string, newParentId: string, newIndex: number): Node => {
+  // Find the node to move
+  const findNode = (node: Node): Node | null => {
+    if (node.id === nodeId) return node;
+    for (const child of node.children) {
+      const found = findNode(child);
+      if (found) return found;
+    }
+    return null;
+  };
+
+  const nodeToMove = findNode(tree);
+  if (!nodeToMove) return tree;
+
+  // Remove the node from its current position
+  const removeNode = (node: Node): Node => {
+    return {
+      ...node,
+      children: node.children
+        .filter(child => child.id !== nodeId)
+        .map(child => removeNode(child))
+    };
+  };
+
+  // Add the node to its new position
+  const addNodeToNewPosition = (node: Node): Node => {
+    if (node.id === newParentId) {
+      const newChildren = [...node.children];
+      newChildren.splice(newIndex, 0, nodeToMove);
+      return {
+        ...node,
+        children: newChildren
+      };
+    }
+    return {
+      ...node,
+      children: node.children.map(child => addNodeToNewPosition(child))
+    };
+  };
+
+  const removedTree = removeNode(tree);
+  return addNodeToNewPosition(removedTree);
+};
+
 export default function DemoPage() {
-  const [tree, setTree] = useState<Node>({
-    id: "root",
-    text: "Joke Video Creation",
-    collapsed: false,
-    children: [
-      { id: generateId(), text: "1. Select joke reference image", children: [] },
-      { id: generateId(), text: "2. Type joke text", children: [] },
-      { id: generateId(), text: "3. Generate image (AI or meme tool)", children: [] },
-      { id: generateId(), text: "4. Edit with Canva", collapsed: false, children: [
-        { id: generateId(), text: "Add overlays", children: [] },
-        { id: generateId(), text: "Add text effects", children: [] },
-        { id: generateId(), text: "Export as video", children: [] },
-      ] },
-      { id: generateId(), text: "5. Add song (background music)", children: [] },
-      { id: generateId(), text: "6. Upload to platform (YouTube, Instagram, etc.)", children: [] },
-    ],
-  });
+  const [tree, setTree] = useState<NodeData | null>(null);
   const [selectedId, setSelectedId] = useState<string>("root");
-  const [zoomedNodeId, setZoomedNodeId] = useState<string | null>(null);
+  const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set(["root"]));
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"command" | "edit">("command");
   const [editText, setEditText] = useState("");
   const [search, setSearch] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [zoomedNodeId, setZoomedNodeId] = useState<string | null>(null);
+  const [clipboard, setClipboard] = useState<{ nodes: NodeData[], operation: 'copy' | 'cut' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const historyManager = useRef(new HistoryManager()).current;
+  const [showStyleControls, setShowStyleControls] = useState(false);
+
+  // Update handleUndo and handleRedo to use type guards
+  const handleUndo = useCallback(() => {
+    if (historyManager.canUndo()) {
+      const entry = historyManager.undo();
+      if (entry && tree) {
+        setTree(prevTree => {
+          if (!prevTree) return prevTree;
+          try {
+            switch (entry.operation.type) {
+              case 'add':
+                return deleteNode(prevTree, entry.operation.nodeId);
+              case 'delete':
+                if (entry.operation.parentId && entry.operation.data) {
+                  return addNode(prevTree, entry.operation.parentId, entry.operation.data);
+                }
+                return prevTree;
+              case 'edit':
+                if (entry.operation.oldData) {
+                  return editNode(prevTree, entry.operation.nodeId, entry.operation.oldData.text);
+                }
+                return prevTree;
+              case 'move':
+                if (entry.operation.oldParentId && entry.operation.oldIndex !== undefined) {
+                  return moveNode(
+                    prevTree,
+                    entry.operation.nodeId,
+                    entry.operation.oldParentId,
+                    entry.operation.oldIndex
+                  );
+                }
+                return prevTree;
+              default:
+                return prevTree;
+            }
+          } catch (error) {
+            console.error('Error during undo:', error);
+            return prevTree;
+          }
+        });
+        setToast({ message: 'Undo successful', type: 'success' });
+      }
+    } else {
+      setToast({ message: 'Nothing to undo', type: 'info' });
+    }
+  }, [historyManager, tree]);
+
+  const handleRedo = useCallback(() => {
+    if (historyManager.canRedo()) {
+      const entry = historyManager.redo();
+      if (entry && tree) {
+        setTree(prevTree => {
+          if (!prevTree) return prevTree;
+          try {
+            switch (entry.operation.type) {
+              case 'add':
+                if (entry.operation.parentId && entry.operation.data) {
+                  return addNode(prevTree, entry.operation.parentId, entry.operation.data);
+                }
+                return prevTree;
+              case 'delete':
+                return deleteNode(prevTree, entry.operation.nodeId);
+              case 'edit':
+                if (entry.operation.newData) {
+                  return editNode(prevTree, entry.operation.nodeId, entry.operation.newData.text);
+                }
+                return prevTree;
+              case 'move':
+                if (entry.operation.newParentId && entry.operation.newIndex !== undefined) {
+                  return moveNode(
+                    prevTree,
+                    entry.operation.nodeId,
+                    entry.operation.newParentId,
+                    entry.operation.newIndex
+                  );
+                }
+                return prevTree;
+              default:
+                return prevTree;
+            }
+          } catch (error) {
+            console.error('Error during redo:', error);
+            return prevTree;
+          }
+        });
+        setToast({ message: 'Redo successful', type: 'success' });
+      }
+    } else {
+      setToast({ message: 'Nothing to redo', type: 'info' });
+    }
+  }, [historyManager, tree]);
+
+  // Add keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if (e.key === 'y' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
+
   const [showHelp, setShowHelp] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -256,12 +451,7 @@ export default function DemoPage() {
   const [searchIndex, setSearchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [expandedMap, setExpandedMap] = useState<{ [id: string]: boolean }>({});
-  const [clipboard, setClipboard] = useState<{ nodes: Node[]; operation: 'copy' | 'cut' } | null>(null);
-  // Add selection state
-  const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
-  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
-  const [historyManager] = useState(() => new HistoryManager());
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Load from API on mount
   useEffect(() => {
@@ -333,7 +523,7 @@ export default function DemoPage() {
       return;
     }
     // Flatten tree and filter
-    const flat = flattenTree(tree);
+    const flat = flattenTree(tree as Node);
     const results = flat.filter(n => n.text.toLowerCase().includes(searchInput.toLowerCase()));
     setSearchResults(results);
     setSearchIndex(0);
@@ -383,7 +573,7 @@ export default function DemoPage() {
       }
       return false;
     }
-    findPath(tree, nodeId);
+    findPath(tree as Node, nodeId);
     return path;
   }
 
@@ -397,7 +587,7 @@ export default function DemoPage() {
   const handleNodeSelect = (nodeId: string, e: React.MouseEvent) => {
     if (e.shiftKey && lastSelectedId) {
       // Sequential selection
-      const flat = flattenTree(tree);
+      const flat = flattenTree(tree as Node);
       const lastIdx = flat.findIndex(n => n.id === lastSelectedId);
       const currentIdx = flat.findIndex(n => n.id === nodeId);
       if (lastIdx !== -1 && currentIdx !== -1) {
@@ -426,7 +616,7 @@ export default function DemoPage() {
     setSelectedId(nodeId);
   };
 
-  // Update keyboard handler
+  // Update keyboard handler to use node operation functions
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (mode === "edit") return;
@@ -451,7 +641,7 @@ export default function DemoPage() {
           // Handle multiple nodes
           const nodes: Node[] = [];
           selectedNodes.forEach(id => {
-            const found = findNodeById(tree, id);
+            const found = findNodeById(tree as Node, id);
             if (found) {
               // Create a deep copy of the node
               const deepCopy = structuredClone(found.node);
@@ -467,7 +657,7 @@ export default function DemoPage() {
           
           if (nodes.length > 0) {
             setClipboard({ 
-              nodes: nodes, // Store array of nodes instead of a single node
+              nodes: nodes.map(n => ({ ...n })),
               operation: e.key === 'y' ? 'copy' : 'cut' 
             });
             
@@ -499,7 +689,7 @@ export default function DemoPage() {
           }
         } else {
           // Handle single node
-          const found = findNodeById(tree, selectedId);
+          const found = findNodeById(tree as Node, selectedId);
           if (found) {
             // Create a deep copy of the node
             const deepCopy = structuredClone(found.node);
@@ -511,7 +701,7 @@ export default function DemoPage() {
             generateNewIds(deepCopy);
             
             setClipboard({ 
-              nodes: [deepCopy], // Store as array for consistency
+              nodes: [deepCopy],
               operation: e.key === 'y' ? 'copy' : 'cut' 
             });
             
@@ -549,7 +739,7 @@ export default function DemoPage() {
       if (e.key === "i") {
         e.preventDefault();
         setMode("edit");
-        const node = findNodeById(tree, selectedId)?.node;
+        const node = findNodeById(tree as Node, selectedId)?.node;
         setEditText(node?.text || "");
         return;
       }
@@ -599,7 +789,7 @@ export default function DemoPage() {
       }
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
-        const flat = flattenTree(tree);
+        const flat = flattenTree(tree as Node);
         const idx = flat.findIndex((n) => n.id === selectedId);
         let nextIdx = idx;
         if (e.key === "ArrowDown" && idx < flat.length - 1) nextIdx = idx + 1;
@@ -709,7 +899,7 @@ export default function DemoPage() {
             if (found.parent) {
               const idx = found.parent.children.findIndex((n) => n.id === selectedId);
               // Insert all nodes after the selected node
-              found.parent.children.splice(idx + 1, 0, ...clipboard.nodes);
+              found.parent.children.splice(idx + 1, 0, ...clipboard.nodes.map(n => ({ ...n })));
               setToast({ 
                 message: `Pasted ${clipboard.nodes.length} nodes after: ${found.node.text}`, 
                 type: 'success' 
@@ -717,7 +907,7 @@ export default function DemoPage() {
             }
           } else {
             // Paste as children of selected node
-            found.node.children.push(...clipboard.nodes);
+            found.node.children.push(...clipboard.nodes.map(n => ({ ...n })));
             setToast({ 
               message: `Pasted ${clipboard.nodes.length} nodes as children of: ${found.node.text}`, 
               type: 'success' 
@@ -737,7 +927,7 @@ export default function DemoPage() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mode, selectedId, tree, search, zoomedNodeId, clipboard, selectedNodes, lastSelectedId]);
+  }, [mode, selectedId, tree, search, zoomedNodeId, clipboard, selectedNodes, lastSelectedId, handleUndo, handleRedo]);
 
   // Render breadcrumb navigation
   function renderBreadcrumb() {
@@ -805,170 +995,78 @@ export default function DemoPage() {
         </a>
       );
     }
+
+    // Apply node styles
+    const nodeStyle = {
+      background: node.style?.backgroundColor || (isSelected ? "#dbeafe" : match ? "#fef08a" : undefined),
+      color: node.style?.textColor || "#111",
+      fontSize: node.style?.fontSize ? `${node.style.fontSize}px` : undefined,
+      fontWeight: node.style?.fontWeight || (isSelected ? "bold" : undefined),
+      fontStyle: node.style?.fontStyle,
+      border: node.style?.borderWidth ? `${node.style.borderWidth}px solid ${node.style.borderColor || '#000000'}` : (isSelected ? "2px solid #3b82f6" : undefined),
+      borderRadius: node.style?.borderRadius ? `${node.style.borderRadius}px` : undefined,
+      padding: node.style?.padding ? `${node.style.padding}px` : undefined,
+    };
+
     return (
       <div key={node.id} style={{ marginLeft: 24, borderLeft: "1px dotted #ccc" }}>
         <div
-          style={{
-            background: isSelected ? "#dbeafe" : match ? "#fef08a" : undefined,
-            fontWeight: isSelected ? "bold" : undefined,
-            color: "#111",
-            padding: "2px 8px",
-            borderRadius: 4,
-            cursor: "pointer",
-            display: "inline-block",
-            border: isSelected ? "2px solid #3b82f6" : undefined,
-          }}
+          style={nodeStyle}
           onClick={(e) => handleNodeSelect(node.id, e)}
         >
-          {mode === "edit" && isSelected ? (
-            <input
-              ref={inputRef}
-              value={editText}
-              onChange={e => setEditText(e.target.value)}
-              className="border px-2 py-1 rounded"
-              style={{ color: "#111", fontWeight: "bold" }}
-              onBlur={() => {
-                setTree((oldTree) => {
+          <div className="flex items-center gap-2">
+            <span>
+              {nodeContent} {node.children.length > 0 && (
+                <span style={{ fontSize: 12, color: "#888" }}>
+                  [{node.collapsed ? "+" : "-"}]
+                </span>
+              )}
+            </span>
+            <button
+              className="text-xs text-gray-400 hover:text-green-600 border border-gray-200 rounded px-1"
+              title="Toggle checklist"
+              onClick={e => {
+                e.stopPropagation();
+                setTree(oldTree => {
                   const copy = structuredClone(oldTree);
-                  const found = findNodeById(copy, selectedId);
+                  const found = findNodeById(copy, node.id);
                   if (found) {
-                    // Slash command: /check or /text
-                    if (editText.startsWith('/check')) {
-                      found.node.type = 'check';
-                      found.node.checked = false;
-                      found.node.text = editText.replace(/^\/check\s*/, '');
-                    } else if (editText.startsWith('/text')) {
+                    if (found.node.type === 'check') {
                       delete found.node.type;
                       delete found.node.checked;
-                      found.node.text = editText.replace(/^\/text\s*/, '');
                     } else {
-                      found.node.text = editText;
+                      found.node.type = 'check';
+                      found.node.checked = false;
                     }
                   }
                   return copy;
                 });
-                setMode("command");
               }}
-              onKeyDown={e => {
-                if (e.key === "Escape") {
-                  setEditText(findNodeById(tree, selectedId)?.node.text || "");
-                  setMode("command");
-                } else if (e.key === "Enter") {
-                  setTree((oldTree) => {
-                    const copy = structuredClone(oldTree);
-                    const found = findNodeById(copy, selectedId);
-                    if (found) {
-                      // Slash command: /check or /text
-                      if (editText.startsWith('/check')) {
-                        found.node.type = 'check';
-                        found.node.checked = false;
-                        found.node.text = editText.replace(/^\/check\s*/, '');
-                      } else if (editText.startsWith('/text')) {
-                        delete found.node.type;
-                        delete found.node.checked;
-                        found.node.text = editText.replace(/^\/text\s*/, '');
-                      } else {
-                        found.node.text = editText;
-                      }
-                    }
-                    if (found && found.parent) {
-                      const idx = found.parent.children.findIndex((n) => n.id === selectedId);
-                      const newId = generateId();
-                      found.parent.children.splice(idx + 1, 0, {
-                        id: newId,
-                        text: "New Sibling",
-                        children: [],
-                      });
-                      setTimeout(() => {
-                        setSelectedId(newId);
-                        setEditText("New Sibling");
-                        setMode("edit");
-                      }, 0);
-                    } else {
-                      setMode("command");
-                    }
-                    return copy;
-                  });
-                } else if (e.key === "Tab" && !e.shiftKey) {
-                  e.preventDefault();
-                  setTree((oldTree) => {
-                    const copy = structuredClone(oldTree);
-                    const found = findNodeById(copy, selectedId);
-                    if (!found || !found.parent) return copy;
-                    const parent = found.parent;
-                    const idx = parent.children.findIndex((n) => n.id === selectedId);
-                    if (idx > 0) {
-                      // Remove from parent
-                      const [node] = parent.children.splice(idx, 1);
-                      // Add as last child of previous sibling
-                      parent.children[idx - 1].children.push(node);
-                    }
-                    return copy;
-                  });
-                } else if (e.key === "Tab" && e.shiftKey) {
-                  e.preventDefault();
-                  setTree((oldTree) => {
-                    const copy = structuredClone(oldTree);
-                    const found = findNodeById(copy, selectedId);
-                    if (!found || !found.parent) return copy;
-                    const parent = found.parent;
-                    const grand = findNodeById(copy, parent.id)?.parent;
-                    if (!grand) return copy; // already at root
-                    // Remove from parent
-                    const idx = parent.children.findIndex((n) => n.id === selectedId);
-                    const [node] = parent.children.splice(idx, 1);
-                    // Insert after parent in grandparent's children
-                    const parentIdx = grand.children.findIndex((n) => n.id === parent.id);
-                    grand.children.splice(parentIdx + 1, 0, node);
-                    return copy;
-                  });
-                }
+            >
+              ☑️
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setZoomedNodeId(node.id);
               }}
-            />
-          ) : (
-            <div className="flex items-center gap-2">
-              <span>
-                {nodeContent} {node.children.length > 0 && (
-                  <span style={{ fontSize: 12, color: "#888" }}>
-                    [{node.collapsed ? "+" : "-"}]
-                  </span>
-                )}
-              </span>
-              <button
-                className="text-xs text-gray-400 hover:text-green-600 border border-gray-200 rounded px-1"
-                title="Toggle checklist"
-                onClick={e => {
-                  e.stopPropagation();
-                  setTree(oldTree => {
-                    const copy = structuredClone(oldTree);
-                    const found = findNodeById(copy, node.id);
-                    if (found) {
-                      if (found.node.type === 'check') {
-                        delete found.node.type;
-                        delete found.node.checked;
-                      } else {
-                        found.node.type = 'check';
-                        found.node.checked = false;
-                      }
-                    }
-                    return copy;
-                  });
-                }}
-              >
-                ☑️
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setZoomedNodeId(node.id);
-                }}
-                className="text-gray-400 hover:text-blue-600"
-                title="Zoom in (z)"
-              >
-                🔍
-              </button>
-            </div>
-          )}
+              className="text-gray-400 hover:text-blue-600"
+              title="Zoom in (z)"
+            >
+              🔍
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedId(node.id);
+                setShowStyleControls(true);
+              }}
+              className="text-gray-400 hover:text-purple-600"
+              title="Style node"
+            >
+              🎨
+            </button>
+          </div>
         </div>
         {youtubeId && (
           <div className="mt-2">
@@ -1005,141 +1103,6 @@ export default function DemoPage() {
     return null;
   }
 
-  // Add node operation functions
-  const addNode = (tree: any, parentId: string, newNode: any) => {
-    const newTree = structuredClone(tree);
-    const found = findNodeById(newTree, parentId);
-    if (found) {
-      found.node.children.push(newNode);
-    }
-    return newTree;
-  };
-
-  const deleteNode = (tree: any, nodeId: string) => {
-    const newTree = structuredClone(tree);
-    const found = findNodeById(newTree, nodeId);
-    if (found && found.parent) {
-      const parent = found.parent;
-      const idx = parent.children.findIndex((n: any) => n.id === nodeId);
-      if (idx !== -1) {
-        parent.children.splice(idx, 1);
-      }
-    }
-    return newTree;
-  };
-
-  const editNode = (tree: any, nodeId: string, newText: string) => {
-    const newTree = structuredClone(tree);
-    const found = findNodeById(newTree, nodeId);
-    if (found) {
-      found.node.text = newText;
-    }
-    return newTree;
-  };
-
-  const moveNode = (tree: any, nodeId: string, newParentId: string, newIndex: number) => {
-    const newTree = structuredClone(tree);
-    const found = findNodeById(newTree, nodeId);
-    const newParent = findNodeById(newTree, newParentId);
-
-    if (found && found.parent && newParent) {
-      // Remove from old parent
-      const oldParent = found.parent;
-      const oldIndex = oldParent.children.findIndex((n: any) => n.id === nodeId);
-      if (oldIndex !== -1) {
-        oldParent.children.splice(oldIndex, 1);
-      }
-
-      // Add to new parent
-      newParent.node.children.splice(newIndex, 0, found.node);
-    }
-
-    return newTree;
-  };
-
-  // Update undo/redo handlers to handle undefined parentId
-  const handleUndo = () => {
-    const entry = historyManager.undo();
-    if (!entry) return;
-
-    setTree(prevTree => {
-      switch (entry.operation.type) {
-        case 'add':
-          return deleteNode(prevTree, entry.operation.nodeId);
-        case 'delete':
-          if (entry.operation.parentId) {
-            return addNode(prevTree, entry.operation.parentId, entry.operation.data);
-          }
-          return prevTree;
-        case 'edit':
-          return editNode(prevTree, entry.operation.nodeId, entry.operation.oldData.text);
-        case 'move':
-          if (entry.operation.oldParentId) {
-            return moveNode(
-              prevTree,
-              entry.operation.nodeId,
-              entry.operation.oldParentId,
-              entry.operation.oldIndex
-            );
-          }
-          return prevTree;
-        default:
-          return prevTree;
-      }
-    });
-  };
-
-  const handleRedo = () => {
-    const entry = historyManager.redo();
-    if (!entry) return;
-
-    setTree(prevTree => {
-      switch (entry.operation.type) {
-        case 'add':
-          if (entry.operation.parentId) {
-            return addNode(prevTree, entry.operation.parentId, entry.operation.data);
-          }
-          return prevTree;
-        case 'delete':
-          return deleteNode(prevTree, entry.operation.nodeId);
-        case 'edit':
-          return editNode(prevTree, entry.operation.nodeId, entry.operation.newData.text);
-        case 'move':
-          if (entry.operation.newParentId) {
-            return moveNode(
-              prevTree,
-              entry.operation.nodeId,
-              entry.operation.newParentId,
-              entry.operation.newIndex
-            );
-          }
-          return prevTree;
-        default:
-          return prevTree;
-      }
-    });
-  };
-
-  // Add keyboard shortcuts for undo/redo
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        if (e.shiftKey) {
-          handleRedo();
-        } else {
-          handleUndo();
-        }
-      } else if (e.key === 'y' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        handleRedo();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
   // Add handleAddNode with history tracking
   const handleAddNode = (parentId: string) => {
     const newNode = {
@@ -1149,71 +1112,97 @@ export default function DemoPage() {
     };
 
     setTree(prevTree => {
+      if (!prevTree) return prevTree;
       const newTree = addNode(prevTree, parentId, newNode);
-      historyManager.push({
-        type: 'add',
-        nodeId: newNode.id,
-        parentId,
-        data: newNode
-      });
-      return newTree;
+      if (newTree) {
+        historyManager.push({
+          type: 'add',
+          nodeId: newNode.id,
+          parentId,
+          data: newNode
+        });
+      }
+      return newTree || prevTree;
     });
   };
 
   // Add handleDeleteNode with history tracking
   const handleDeleteNode = (nodeId: string) => {
     setTree(prevTree => {
+      if (!prevTree) return prevTree;
       const found = findNodeById(prevTree, nodeId);
       if (!found || !found.parent) return prevTree;
 
       const newTree = deleteNode(prevTree, nodeId);
-      historyManager.push({
-        type: 'delete',
-        nodeId,
-        parentId: found.parent.id,
-        data: found.node
-      });
-      return newTree;
+      if (newTree) {
+        historyManager.push({
+          type: 'delete',
+          nodeId,
+          parentId: found.parent.id,
+          data: found.node
+        });
+      }
+      return newTree || prevTree;
     });
   };
 
   // Add handleEditNode with history tracking
   const handleEditNode = (nodeId: string, newText: string) => {
     setTree(prevTree => {
+      if (!prevTree) return prevTree;
       const found = findNodeById(prevTree, nodeId);
       if (!found) return prevTree;
 
       const newTree = editNode(prevTree, nodeId, newText);
-      historyManager.push({
-        type: 'edit',
-        nodeId,
-        oldData: { text: found.node.text },
-        newData: { text: newText }
-      });
-      return newTree;
+      if (newTree) {
+        historyManager.push({
+          type: 'edit',
+          nodeId,
+          oldData: { text: found.node.text },
+          newData: { text: newText }
+        });
+      }
+      return newTree || prevTree;
     });
   };
 
   // Add handleMoveNode with history tracking
   const handleMoveNode = (nodeId: string, newParentId: string, newIndex: number) => {
     setTree(prevTree => {
+      if (!prevTree) return prevTree;
       const found = findNodeById(prevTree, nodeId);
       const newParent = findNodeById(prevTree, newParentId);
       if (!found || !found.parent || !newParent) return prevTree;
 
-      const oldIndex = found.parent.children.findIndex((n: any) => n.id === nodeId);
+      const oldIndex = found.parent.children.findIndex(n => n.id === nodeId);
       const newTree = moveNode(prevTree, nodeId, newParentId, newIndex);
-      historyManager.push({
-        type: 'move',
-        nodeId,
-        oldParentId: found.parent.id,
-        newParentId,
-        oldIndex,
-        newIndex
-      });
-      return newTree;
+      if (newTree) {
+        historyManager.push({
+          type: 'move',
+          nodeId,
+          oldParentId: found.parent.id,
+          newParentId,
+          oldIndex,
+          newIndex
+        });
+      }
+      return newTree || prevTree;
     });
   };
+
+  // Add style change handler
+  const handleStyleChange = useCallback((nodeId: string, newStyle: NodeData['style']) => {
+    setTree(prevTree => {
+      if (!prevTree) return prevTree;
+      const newTree = editNode(prevTree, nodeId, prevTree.text);
+      if (!newTree) return prevTree;
+      const updatedNode = findNodeById(newTree, nodeId);
+      if (updatedNode) {
+        updatedNode.node.style = newStyle;
+      }
+      return newTree;
+    });
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -1274,7 +1263,7 @@ export default function DemoPage() {
           >
             ��
           </button>
-          {showExport && <ExportModal tree={tree} onClose={() => setShowExport(false)} />}
+          {showExport && <ExportModal tree={tree as Node} onClose={() => setShowExport(false)} />}
           {/* Import icon */}
           <button
             className="absolute top-4 right-28 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
@@ -1284,6 +1273,13 @@ export default function DemoPage() {
             🖇
           </button>
           {showImport && <ImportModal onImport={setTree} onClose={() => setShowImport(false)} />}
+          {showStyleControls && tree && (
+            <NodeStyleControls
+              node={findNodeById(tree, selectedId)?.node || tree}
+              onStyleChange={(style) => handleStyleChange(selectedId, style)}
+              onClose={() => setShowStyleControls(false)}
+            />
+          )}
           <h1 className="text-2xl font-bold mb-4 text-black">Mindmap Demo (Keyboard Driven)</h1>
           {selectedNodes.size > 1 && (
             <div className="mb-4 p-3 bg-blue-100 border-l-4 border-blue-500 text-blue-900 rounded">
@@ -1370,7 +1366,7 @@ export default function DemoPage() {
               onClose={() => setToast(null)} 
             />
           )}
-          <div>{renderNode(zoomedNodeId ? getNodeById(tree, zoomedNodeId)! : tree)}</div>
+          <div>{renderNode(zoomedNodeId ? getNodeById(tree as Node, zoomedNodeId)! : tree as Node)}</div>
           {search && <div className="mt-4 text-xs text-gray-500">Searching for: <b>{search}</b></div>}
         </div>
       </div>
