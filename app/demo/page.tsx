@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import React from "react";
 import Image from "next/image";
+import { HistoryManager, NodeOperation } from '../utils/HistoryManager';
 
 const LOCAL_STORAGE_KEY = "mindmap-demo-tree";
 const API_URL = "https://tawhid.in/tiny/heartbeat/api.php";
@@ -260,6 +261,7 @@ export default function DemoPage() {
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
+  const [historyManager] = useState(() => new HistoryManager());
 
   // Load from API on mount
   useEffect(() => {
@@ -529,10 +531,10 @@ export default function DemoPage() {
                 const parent = found.parent;
                 const idx = parent.children.findIndex((n) => n.id === selectedId);
                 parent.children.splice(idx, 1);
-                if (parent.children[idx]) {
-                  setSelectedId(parent.children[idx].id);
-                } else if (parent.children[idx - 1]) {
+                if (parent.children[idx - 1]) {
                   setSelectedId(parent.children[idx - 1].id);
+                } else if (parent.children[idx]) {
+                  setSelectedId(parent.children[idx].id);
                 } else {
                   setSelectedId(parent.id);
                 }
@@ -1003,135 +1005,374 @@ export default function DemoPage() {
     return null;
   }
 
+  // Add node operation functions
+  const addNode = (tree: any, parentId: string, newNode: any) => {
+    const newTree = structuredClone(tree);
+    const found = findNodeById(newTree, parentId);
+    if (found) {
+      found.node.children.push(newNode);
+    }
+    return newTree;
+  };
+
+  const deleteNode = (tree: any, nodeId: string) => {
+    const newTree = structuredClone(tree);
+    const found = findNodeById(newTree, nodeId);
+    if (found && found.parent) {
+      const parent = found.parent;
+      const idx = parent.children.findIndex((n: any) => n.id === nodeId);
+      if (idx !== -1) {
+        parent.children.splice(idx, 1);
+      }
+    }
+    return newTree;
+  };
+
+  const editNode = (tree: any, nodeId: string, newText: string) => {
+    const newTree = structuredClone(tree);
+    const found = findNodeById(newTree, nodeId);
+    if (found) {
+      found.node.text = newText;
+    }
+    return newTree;
+  };
+
+  const moveNode = (tree: any, nodeId: string, newParentId: string, newIndex: number) => {
+    const newTree = structuredClone(tree);
+    const found = findNodeById(newTree, nodeId);
+    const newParent = findNodeById(newTree, newParentId);
+
+    if (found && found.parent && newParent) {
+      // Remove from old parent
+      const oldParent = found.parent;
+      const oldIndex = oldParent.children.findIndex((n: any) => n.id === nodeId);
+      if (oldIndex !== -1) {
+        oldParent.children.splice(oldIndex, 1);
+      }
+
+      // Add to new parent
+      newParent.node.children.splice(newIndex, 0, found.node);
+    }
+
+    return newTree;
+  };
+
+  // Update undo/redo handlers to handle undefined parentId
+  const handleUndo = () => {
+    const entry = historyManager.undo();
+    if (!entry) return;
+
+    setTree(prevTree => {
+      switch (entry.operation.type) {
+        case 'add':
+          return deleteNode(prevTree, entry.operation.nodeId);
+        case 'delete':
+          if (entry.operation.parentId) {
+            return addNode(prevTree, entry.operation.parentId, entry.operation.data);
+          }
+          return prevTree;
+        case 'edit':
+          return editNode(prevTree, entry.operation.nodeId, entry.operation.oldData.text);
+        case 'move':
+          if (entry.operation.oldParentId) {
+            return moveNode(
+              prevTree,
+              entry.operation.nodeId,
+              entry.operation.oldParentId,
+              entry.operation.oldIndex
+            );
+          }
+          return prevTree;
+        default:
+          return prevTree;
+      }
+    });
+  };
+
+  const handleRedo = () => {
+    const entry = historyManager.redo();
+    if (!entry) return;
+
+    setTree(prevTree => {
+      switch (entry.operation.type) {
+        case 'add':
+          if (entry.operation.parentId) {
+            return addNode(prevTree, entry.operation.parentId, entry.operation.data);
+          }
+          return prevTree;
+        case 'delete':
+          return deleteNode(prevTree, entry.operation.nodeId);
+        case 'edit':
+          return editNode(prevTree, entry.operation.nodeId, entry.operation.newData.text);
+        case 'move':
+          if (entry.operation.newParentId) {
+            return moveNode(
+              prevTree,
+              entry.operation.nodeId,
+              entry.operation.newParentId,
+              entry.operation.newIndex
+            );
+          }
+          return prevTree;
+        default:
+          return prevTree;
+      }
+    });
+  };
+
+  // Add keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if (e.key === 'y' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Add handleAddNode with history tracking
+  const handleAddNode = (parentId: string) => {
+    const newNode = {
+      id: generateId(),
+      text: 'New Node',
+      children: []
+    };
+
+    setTree(prevTree => {
+      const newTree = addNode(prevTree, parentId, newNode);
+      historyManager.push({
+        type: 'add',
+        nodeId: newNode.id,
+        parentId,
+        data: newNode
+      });
+      return newTree;
+    });
+  };
+
+  // Add handleDeleteNode with history tracking
+  const handleDeleteNode = (nodeId: string) => {
+    setTree(prevTree => {
+      const found = findNodeById(prevTree, nodeId);
+      if (!found || !found.parent) return prevTree;
+
+      const newTree = deleteNode(prevTree, nodeId);
+      historyManager.push({
+        type: 'delete',
+        nodeId,
+        parentId: found.parent.id,
+        data: found.node
+      });
+      return newTree;
+    });
+  };
+
+  // Add handleEditNode with history tracking
+  const handleEditNode = (nodeId: string, newText: string) => {
+    setTree(prevTree => {
+      const found = findNodeById(prevTree, nodeId);
+      if (!found) return prevTree;
+
+      const newTree = editNode(prevTree, nodeId, newText);
+      historyManager.push({
+        type: 'edit',
+        nodeId,
+        oldData: { text: found.node.text },
+        newData: { text: newText }
+      });
+      return newTree;
+    });
+  };
+
+  // Add handleMoveNode with history tracking
+  const handleMoveNode = (nodeId: string, newParentId: string, newIndex: number) => {
+    setTree(prevTree => {
+      const found = findNodeById(prevTree, nodeId);
+      const newParent = findNodeById(prevTree, newParentId);
+      if (!found || !found.parent || !newParent) return prevTree;
+
+      const oldIndex = found.parent.children.findIndex((n: any) => n.id === nodeId);
+      const newTree = moveNode(prevTree, nodeId, newParentId, newIndex);
+      historyManager.push({
+        type: 'move',
+        nodeId,
+        oldParentId: found.parent.id,
+        newParentId,
+        oldIndex,
+        newIndex
+      });
+      return newTree;
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 py-10">
-      <div className="max-w-2xl mx-auto bg-white rounded-xl shadow p-6 relative">
-        {/* Help icon */}
-        <button
-          className="absolute top-4 right-4 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
-          onClick={() => setShowHelp(true)}
-          aria-label="Show help"
-        >
-          ?
-        </button>
-        {showHelp && <HelpCard onClose={() => setShowHelp(false)} />}
-        {/* Search icon */}
-        <button
-          className="absolute top-4 right-16 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
-          onClick={() => {
-            setSearchOpen(true);
-            setTimeout(() => searchInputRef.current?.focus(), 0);
-          }}
-          aria-label="Search nodes"
-        >
-          🔍
-        </button>
-        {/* Export icon */}
-        <button
-          className="absolute top-4 right-28 bg-green-100 hover:bg-green-200 text-green-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
-          onClick={() => setShowExport(true)}
-          aria-label="Export mindmap"
-        >
-          &#8681;
-        </button>
-        {showExport && <ExportModal tree={tree} onClose={() => setShowExport(false)} />}
-        {/* Import icon */}
-        <button
-          className="absolute top-4 right-28 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
-          onClick={() => setShowImport(true)}
-          aria-label="Import mindmap"
-        >
-          &#8682;
-        </button>
-        {showImport && <ImportModal onImport={setTree} onClose={() => setShowImport(false)} />}
-        <h1 className="text-2xl font-bold mb-4 text-black">Mindmap Demo (Keyboard Driven)</h1>
-        {selectedNodes.size > 1 && (
-          <div className="mb-4 p-3 bg-blue-100 border-l-4 border-blue-500 text-blue-900 rounded">
-            <b>Multiple nodes selected:</b> {selectedNodes.size} nodes
-            <div className="text-sm mt-1">
-              Use Shift+Click for sequential selection<br />
-              Use Ctrl/Cmd+Click for random selection
-            </div>
+    <div className="min-h-screen bg-gray-100">
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Mind Map Demo</h1>
+          <div className="flex gap-4">
+            <button
+              onClick={handleUndo}
+              disabled={!historyManager.canUndo()}
+              className={`px-4 py-2 rounded-md ${
+                historyManager.canUndo()
+                  ? 'bg-blue-500 text-white hover:bg-blue-600'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              Undo
+            </button>
+            <button
+              onClick={handleRedo}
+              disabled={!historyManager.canRedo()}
+              className={`px-4 py-2 rounded-md ${
+                historyManager.canRedo()
+                  ? 'bg-blue-500 text-white hover:bg-blue-600'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              Redo
+            </button>
           </div>
-        )}
-        {renderBreadcrumb()}
-        {/* Search Modal/Dropdown */}
-        {searchOpen && (
-          <div className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-20">
-            <div className="bg-white rounded-xl shadow-lg mt-32 w-full max-w-lg p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <input
-                  ref={searchInputRef}
-                  value={searchInput}
-                  onChange={e => setSearchInput(e.target.value)}
-                  className="flex-1 border px-4 py-2 rounded text-lg text-black"
-                  placeholder="Search nodes..."
-                  onKeyDown={e => {
-                    if (e.key === "Enter" && searchResults[searchIndex]) {
-                      setZoomedNodeId(searchResults[searchIndex].id);
-                      setSelectedId(searchResults[searchIndex].id);
-                      setSearchOpen(false);
-                      setSearchInput("");
-                      setSearchResults([]);
-                    } else if (e.key === "ArrowDown") {
-                      setSearchIndex(i => Math.min(i + 1, searchResults.length - 1));
-                      e.preventDefault();
-                    } else if (e.key === "ArrowUp") {
-                      setSearchIndex(i => Math.max(i - 1, 0));
-                      e.preventDefault();
-                    } else if (e.key === "Escape") {
-                      setSearchOpen(false);
-                      setSearchInput("");
-                      setSearchResults([]);
-                    }
-                    e.stopPropagation();
-                  }}
-                />
-                <button
-                  onClick={() => {
-                    setSearchOpen(false);
-                    setSearchInput("");
-                    setSearchResults([]);
-                  }}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </button>
+        </div>
+        <div className="max-w-2xl mx-auto bg-white rounded-xl shadow p-6 relative">
+          {/* Help icon */}
+          <button
+            className="absolute top-4 right-4 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
+            onClick={() => setShowHelp(true)}
+            aria-label="Show help"
+          >
+            ?
+          </button>
+          {showHelp && <HelpCard onClose={() => setShowHelp(false)} />}
+          {/* Search icon */}
+          <button
+            className="absolute top-4 right-16 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
+            onClick={() => {
+              setSearchOpen(true);
+              setTimeout(() => searchInputRef.current?.focus(), 0);
+            }}
+            aria-label="Search nodes"
+          >
+            🔍
+          </button>
+          {/* Export icon */}
+          <button
+            className="absolute top-4 right-28 bg-green-100 hover:bg-green-200 text-green-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
+            onClick={() => setShowExport(true)}
+            aria-label="Export mindmap"
+          >
+            ��
+          </button>
+          {showExport && <ExportModal tree={tree} onClose={() => setShowExport(false)} />}
+          {/* Import icon */}
+          <button
+            className="absolute top-4 right-28 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-full w-8 h-8 flex items-center justify-center shadow"
+            onClick={() => setShowImport(true)}
+            aria-label="Import mindmap"
+          >
+            🖇
+          </button>
+          {showImport && <ImportModal onImport={setTree} onClose={() => setShowImport(false)} />}
+          <h1 className="text-2xl font-bold mb-4 text-black">Mindmap Demo (Keyboard Driven)</h1>
+          {selectedNodes.size > 1 && (
+            <div className="mb-4 p-3 bg-blue-100 border-l-4 border-blue-500 text-blue-900 rounded">
+              <b>Multiple nodes selected:</b> {selectedNodes.size} nodes
+              <div className="text-sm mt-1">
+                Use Shift+Click for sequential selection<br />
+                Use Ctrl/Cmd+Click for random selection
               </div>
-              <div className="max-h-60 overflow-y-auto">
-                {searchResults.length === 0 && searchInput && (
-                  <div className="text-gray-400 px-2 py-1">No results</div>
-                )}
-                {searchResults.map((node, i) => (
-                  <div
-                    key={node.id}
-                    className={`px-3 py-2 rounded cursor-pointer text-gray-900 ${i === searchIndex ? "bg-blue-100 text-black" : "hover:bg-gray-100"}`}
-                    onMouseDown={() => {
-                      setZoomedNodeId(node.id);
-                      setSelectedId(node.id);
+            </div>
+          )}
+          {renderBreadcrumb()}
+          {/* Search Modal/Dropdown */}
+          {searchOpen && (
+            <div className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-20">
+              <div className="bg-white rounded-xl shadow-lg mt-32 w-full max-w-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    ref={searchInputRef}
+                    value={searchInput}
+                    onChange={e => setSearchInput(e.target.value)}
+                    className="flex-1 border px-4 py-2 rounded text-lg text-black"
+                    placeholder="Search nodes..."
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && searchResults[searchIndex]) {
+                        setZoomedNodeId(searchResults[searchIndex].id);
+                        setSelectedId(searchResults[searchIndex].id);
+                        setSearchOpen(false);
+                        setSearchInput("");
+                        setSearchResults([]);
+                      } else if (e.key === "ArrowDown") {
+                        setSearchIndex(i => Math.min(i + 1, searchResults.length - 1));
+                        e.preventDefault();
+                      } else if (e.key === "ArrowUp") {
+                        setSearchIndex(i => Math.max(i - 1, 0));
+                        e.preventDefault();
+                      } else if (e.key === "Escape") {
+                        setSearchOpen(false);
+                        setSearchInput("");
+                        setSearchResults([]);
+                      }
+                      e.stopPropagation();
+                    }}
+                  />
+                  <button
+                    onClick={() => {
                       setSearchOpen(false);
                       setSearchInput("");
                       setSearchResults([]);
                     }}
+                    className="text-gray-500 hover:text-gray-700"
                   >
-                    <span className="block text-xs text-gray-500 mb-1">{getNodePathText(node.id)}</span>
-                    <span className="block font-medium">{node.text}</span>
-                  </div>
-                ))}
+                    ✕
+                  </button>
+                </div>
+                <div className="max-h-60 overflow-y-auto">
+                  {searchResults.length === 0 && searchInput && (
+                    <div className="text-gray-400 px-2 py-1">No results</div>
+                  )}
+                  {searchResults.map((node, i) => (
+                    <div
+                      key={node.id}
+                      className={`px-3 py-2 rounded cursor-pointer text-gray-900 ${i === searchIndex ? "bg-blue-100 text-black" : "hover:bg-gray-100"}`}
+                      onMouseDown={() => {
+                        setZoomedNodeId(node.id);
+                        setSelectedId(node.id);
+                        setSearchOpen(false);
+                        setSearchInput("");
+                        setSearchResults([]);
+                      }}
+                    >
+                      <span className="block text-xs text-gray-500 mb-1">{getNodePathText(node.id)}</span>
+                      <span className="block font-medium">{node.text}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="text-xs text-gray-400 mt-2">Use ↑/↓ to navigate, Enter to select, Esc to close</div>
               </div>
-              <div className="text-xs text-gray-400 mt-2">Use ↑/↓ to navigate, Enter to select, Esc to close</div>
             </div>
-          </div>
-        )}
-        {toast && (
-          <Toast 
-            message={toast.message} 
-            type={toast.type} 
-            onClose={() => setToast(null)} 
-          />
-        )}
-        <div>{renderNode(zoomedNodeId ? getNodeById(tree, zoomedNodeId)! : tree)}</div>
-        {search && <div className="mt-4 text-xs text-gray-500">Searching for: <b>{search}</b></div>}
+          )}
+          {toast && (
+            <Toast 
+              message={toast.message} 
+              type={toast.type} 
+              onClose={() => setToast(null)} 
+            />
+          )}
+          <div>{renderNode(zoomedNodeId ? getNodeById(tree, zoomedNodeId)! : tree)}</div>
+          {search && <div className="mt-4 text-xs text-gray-500">Searching for: <b>{search}</b></div>}
+        </div>
       </div>
     </div>
   );
