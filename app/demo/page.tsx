@@ -29,6 +29,11 @@ type NodeOperation = {
   newIndex?: number;
 };
 
+// Add type guard for NodeData
+function isNodeData(value: any): value is NodeData {
+  return value && typeof value === 'object' && 'id' in value && 'text' in value;
+}
+
 function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -234,8 +239,9 @@ function Toast({ message, type, onClose }: { message: string; type: ToastType; o
   );
 }
 
-// Update node operation functions with strict types
+// Update node operation functions with strict types and null checks
 const addNode = (tree: Node, parentId: string, data: NodeData): Node => {
+  if (!isNodeData(tree)) throw new Error('Invalid tree');
   if (tree.id === parentId) {
     return {
       ...tree,
@@ -249,6 +255,7 @@ const addNode = (tree: Node, parentId: string, data: NodeData): Node => {
 };
 
 const deleteNode = (tree: Node, nodeId: string): Node => {
+  if (!isNodeData(tree)) throw new Error('Invalid tree');
   if (tree.id === nodeId) {
     throw new Error('Cannot delete root node');
   }
@@ -261,6 +268,7 @@ const deleteNode = (tree: Node, nodeId: string): Node => {
 };
 
 const editNode = (tree: Node, nodeId: string, newText: string): Node => {
+  if (!isNodeData(tree)) throw new Error('Invalid tree');
   if (tree.id === nodeId) {
     return {
       ...tree,
@@ -274,6 +282,7 @@ const editNode = (tree: Node, nodeId: string, newText: string): Node => {
 };
 
 const moveNode = (tree: Node, nodeId: string, newParentId: string, newIndex: number): Node => {
+  if (!isNodeData(tree)) throw new Error('Invalid tree');
   // Find the node to move
   const findNode = (node: Node): Node | null => {
     if (node.id === nodeId) return node;
@@ -335,36 +344,39 @@ export default function DemoPage() {
   const handleUndo = useCallback(() => {
     if (historyManager.canUndo()) {
       const entry = historyManager.undo();
-      if (entry && tree) {
+      if (entry) {
         setTree(prevTree => {
-          if (!prevTree) return prevTree;
+          if (!prevTree || !isNodeData(prevTree)) return prevTree;
           try {
-            switch (entry.operation.type) {
-              case 'add':
-                return deleteNode(prevTree, entry.operation.nodeId);
-              case 'delete':
-                if (entry.operation.parentId && entry.operation.data) {
-                  return addNode(prevTree, entry.operation.parentId, entry.operation.data);
-                }
-                return prevTree;
-              case 'edit':
-                if (entry.operation.oldData) {
-                  return editNode(prevTree, entry.operation.nodeId, entry.operation.oldData.text);
-                }
-                return prevTree;
-              case 'move':
-                if (entry.operation.oldParentId && entry.operation.oldIndex !== undefined) {
-                  return moveNode(
-                    prevTree,
-                    entry.operation.nodeId,
-                    entry.operation.oldParentId,
-                    entry.operation.oldIndex
-                  );
-                }
-                return prevTree;
-              default:
-                return prevTree;
-            }
+            const newTree = (() => {
+              switch (entry.operation.type) {
+                case 'add':
+                  return deleteNode(prevTree, entry.operation.nodeId);
+                case 'delete':
+                  if (entry.operation.parentId && entry.operation.data) {
+                    return addNode(prevTree, entry.operation.parentId, entry.operation.data);
+                  }
+                  return prevTree;
+                case 'edit':
+                  if (entry.operation.oldData) {
+                    return editNode(prevTree, entry.operation.nodeId, entry.operation.oldData.text);
+                  }
+                  return prevTree;
+                case 'move':
+                  if (entry.operation.oldParentId && entry.operation.oldIndex !== undefined) {
+                    return moveNode(
+                      prevTree,
+                      entry.operation.nodeId,
+                      entry.operation.oldParentId,
+                      entry.operation.oldIndex
+                    );
+                  }
+                  return prevTree;
+                default:
+                  return prevTree;
+              }
+            })();
+            return newTree;
           } catch (error) {
             console.error('Error during undo:', error);
             return prevTree;
@@ -375,41 +387,44 @@ export default function DemoPage() {
     } else {
       setToast({ message: 'Nothing to undo', type: 'info' });
     }
-  }, [historyManager, tree]);
+  }, [historyManager]);
 
   const handleRedo = useCallback(() => {
     if (historyManager.canRedo()) {
       const entry = historyManager.redo();
-      if (entry && tree) {
+      if (entry) {
         setTree(prevTree => {
-          if (!prevTree) return prevTree;
+          if (!prevTree || !isNodeData(prevTree)) return prevTree;
           try {
-            switch (entry.operation.type) {
-              case 'add':
-                if (entry.operation.parentId && entry.operation.data) {
-                  return addNode(prevTree, entry.operation.parentId, entry.operation.data);
-                }
-                return prevTree;
-              case 'delete':
-                return deleteNode(prevTree, entry.operation.nodeId);
-              case 'edit':
-                if (entry.operation.newData) {
-                  return editNode(prevTree, entry.operation.nodeId, entry.operation.newData.text);
-                }
-                return prevTree;
-              case 'move':
-                if (entry.operation.newParentId && entry.operation.newIndex !== undefined) {
-                  return moveNode(
-                    prevTree,
-                    entry.operation.nodeId,
-                    entry.operation.newParentId,
-                    entry.operation.newIndex
-                  );
-                }
-                return prevTree;
-              default:
-                return prevTree;
-            }
+            const newTree = (() => {
+              switch (entry.operation.type) {
+                case 'add':
+                  if (entry.operation.parentId && entry.operation.data) {
+                    return addNode(prevTree, entry.operation.parentId, entry.operation.data);
+                  }
+                  return prevTree;
+                case 'delete':
+                  return deleteNode(prevTree, entry.operation.nodeId);
+                case 'edit':
+                  if (entry.operation.newData) {
+                    return editNode(prevTree, entry.operation.nodeId, entry.operation.newData.text);
+                  }
+                  return prevTree;
+                case 'move':
+                  if (entry.operation.newParentId && entry.operation.newIndex !== undefined) {
+                    return moveNode(
+                      prevTree,
+                      entry.operation.nodeId,
+                      entry.operation.newParentId,
+                      entry.operation.newIndex
+                    );
+                  }
+                  return prevTree;
+                default:
+                  return prevTree;
+              }
+            })();
+            return newTree;
           } catch (error) {
             console.error('Error during redo:', error);
             return prevTree;
@@ -420,7 +435,7 @@ export default function DemoPage() {
     } else {
       setToast({ message: 'Nothing to redo', type: 'info' });
     }
-  }, [historyManager, tree]);
+  }, [historyManager]);
 
   // Add keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -1112,71 +1127,80 @@ export default function DemoPage() {
     };
 
     setTree(prevTree => {
-      if (!prevTree) return prevTree;
-      const newTree = addNode(prevTree, parentId, newNode);
-      if (newTree) {
+      if (!prevTree || !isNodeData(prevTree)) return prevTree;
+      try {
+        const newTree = addNode(prevTree, parentId, newNode);
         historyManager.push({
           type: 'add',
           nodeId: newNode.id,
           parentId,
           data: newNode
         });
+        return newTree;
+      } catch (error) {
+        console.error('Error during add node:', error);
+        return prevTree;
       }
-      return newTree || prevTree;
     });
   };
 
   // Add handleDeleteNode with history tracking
   const handleDeleteNode = (nodeId: string) => {
     setTree(prevTree => {
-      if (!prevTree) return prevTree;
-      const found = findNodeById(prevTree, nodeId);
-      if (!found || !found.parent) return prevTree;
+      if (!prevTree || !isNodeData(prevTree)) return prevTree;
+      try {
+        const found = findNodeById(prevTree, nodeId);
+        if (!found || !found.parent) return prevTree;
 
-      const newTree = deleteNode(prevTree, nodeId);
-      if (newTree) {
+        const newTree = deleteNode(prevTree, nodeId);
         historyManager.push({
           type: 'delete',
           nodeId,
           parentId: found.parent.id,
           data: found.node
         });
+        return newTree;
+      } catch (error) {
+        console.error('Error during delete node:', error);
+        return prevTree;
       }
-      return newTree || prevTree;
     });
   };
 
   // Add handleEditNode with history tracking
   const handleEditNode = (nodeId: string, newText: string) => {
     setTree(prevTree => {
-      if (!prevTree) return prevTree;
-      const found = findNodeById(prevTree, nodeId);
-      if (!found) return prevTree;
+      if (!prevTree || !isNodeData(prevTree)) return prevTree;
+      try {
+        const found = findNodeById(prevTree, nodeId);
+        if (!found) return prevTree;
 
-      const newTree = editNode(prevTree, nodeId, newText);
-      if (newTree) {
+        const newTree = editNode(prevTree, nodeId, newText);
         historyManager.push({
           type: 'edit',
           nodeId,
           oldData: { text: found.node.text },
           newData: { text: newText }
         });
+        return newTree;
+      } catch (error) {
+        console.error('Error during edit node:', error);
+        return prevTree;
       }
-      return newTree || prevTree;
     });
   };
 
   // Add handleMoveNode with history tracking
   const handleMoveNode = (nodeId: string, newParentId: string, newIndex: number) => {
     setTree(prevTree => {
-      if (!prevTree) return prevTree;
-      const found = findNodeById(prevTree, nodeId);
-      const newParent = findNodeById(prevTree, newParentId);
-      if (!found || !found.parent || !newParent) return prevTree;
+      if (!prevTree || !isNodeData(prevTree)) return prevTree;
+      try {
+        const found = findNodeById(prevTree, nodeId);
+        const newParent = findNodeById(prevTree, newParentId);
+        if (!found || !found.parent || !newParent) return prevTree;
 
-      const oldIndex = found.parent.children.findIndex(n => n.id === nodeId);
-      const newTree = moveNode(prevTree, nodeId, newParentId, newIndex);
-      if (newTree) {
+        const oldIndex = found.parent.children.findIndex(n => n.id === nodeId);
+        const newTree = moveNode(prevTree, nodeId, newParentId, newIndex);
         historyManager.push({
           type: 'move',
           nodeId,
@@ -1185,22 +1209,29 @@ export default function DemoPage() {
           oldIndex,
           newIndex
         });
+        return newTree;
+      } catch (error) {
+        console.error('Error during move node:', error);
+        return prevTree;
       }
-      return newTree || prevTree;
     });
   };
 
   // Add style change handler
   const handleStyleChange = useCallback((nodeId: string, newStyle: NodeData['style']) => {
     setTree(prevTree => {
-      if (!prevTree) return prevTree;
-      const newTree = editNode(prevTree, nodeId, prevTree.text);
-      if (!newTree) return prevTree;
-      const updatedNode = findNodeById(newTree, nodeId);
-      if (updatedNode) {
-        updatedNode.node.style = newStyle;
+      if (!prevTree || !isNodeData(prevTree)) return prevTree;
+      try {
+        const newTree = editNode(prevTree, nodeId, prevTree.text);
+        const updatedNode = findNodeById(newTree, nodeId);
+        if (updatedNode) {
+          updatedNode.node.style = newStyle;
+        }
+        return newTree;
+      } catch (error) {
+        console.error('Error during style change:', error);
+        return prevTree;
       }
-      return newTree;
     });
   }, []);
 
