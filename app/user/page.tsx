@@ -1,10 +1,9 @@
 "use client";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../components/AuthProvider";
-import Footer from "../components/Footer";
 import Image from "next/image";
-import { HistoryManager, NodeData } from '../utils/HistoryManager';
+import { NodeData } from '../utils/HistoryManager';
 import { NodeStyleControls } from '../components/NodeStyleControls';
 
 // Update Node type to match NodeData
@@ -117,7 +116,6 @@ export default function UserPage() {
   const [zoomedNodeId, setZoomedNodeId] = useState<string | null>(null);
   const [clipboard, setClipboard] = useState<{ nodes: NodeData[], operation: 'copy' | 'cut' } | null>(null);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-  const historyManager = useRef(new HistoryManager()).current;
   const [showStyleControls, setShowStyleControls] = useState(false);
   const [expandedMap, setExpandedMap] = useState<{ [id: string]: boolean }>({});
   const [showHelp, setShowHelp] = useState(false);
@@ -173,13 +171,6 @@ export default function UserPage() {
     }
     traverse(tree);
     return result;
-  }
-
-  // Helper: get path for a node
-  function getNodePathText(nodeId: string): string {
-    if (!tree) return '';
-    const path = getNodePath(nodeId);
-    return path.map(n => n.text).join(' > ');
   }
 
   useEffect(() => {
