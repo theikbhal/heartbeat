@@ -7,15 +7,8 @@ import Image from "next/image";
 import { HistoryManager, NodeData } from '../utils/HistoryManager';
 import { NodeStyleControls } from '../components/NodeStyleControls';
 
-// Node type (copied from demo page)
-type Node = {
-  id: string;
-  text: string;
-  children: Node[];
-  collapsed?: boolean;
-  type?: 'check';
-  checked?: boolean;
-};
+// Update Node type to match NodeData
+type Node = NodeData;
 
 interface Mindmap {
   id: string;
@@ -962,6 +955,29 @@ export default function UserPage() {
     );
   }
 
+  // Add handleStyleChange function
+  const handleStyleChange = (nodeId: string, newStyle: NodeData['style']) => {
+    setTree(prevTree => {
+      if (!prevTree) return prevTree;
+      const copy = structuredClone(prevTree);
+      const found = findNodeById(copy, nodeId);
+      if (found) {
+        found.node.style = newStyle;
+      }
+      return copy;
+    });
+  };
+
+  // Add getNodeById function
+  function getNodeById(node: NodeData, id: string): NodeData | null {
+    if (node.id === id) return node;
+    for (const child of node.children) {
+      const found = getNodeById(child, id);
+      if (found) return found;
+    }
+    return null;
+  }
+
   if (!user) return null;
 
   return (
@@ -1152,7 +1168,9 @@ export default function UserPage() {
                 {isEditing && (
                   <button
                     onClick={() => {
+                      setIsSaving(true);
                       // Implement save logic
+                      setIsSaving(false);
                     }}
                     disabled={isSaving}
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
@@ -1165,6 +1183,26 @@ export default function UserPage() {
           </div>
         </div>
       )}
+
+      {showHelp && <HelpCard onClose={() => setShowHelp(false)} />}
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
+
+      {showStyleControls && tree && (
+        <NodeStyleControls
+          node={findNodeById(tree, selectedId)?.node || tree}
+          onStyleChange={(style) => handleStyleChange(selectedId, style)}
+          onClose={() => setShowStyleControls(false)}
+        />
+      )}
+
+      {renderBreadcrumb()}
+      {renderNode(zoomedNodeId && tree ? getNodeById(tree, zoomedNodeId) || tree : tree!)}
     </div>
   );
 } 

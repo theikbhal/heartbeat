@@ -739,7 +739,6 @@ export default function DemoPage() {
       if (e.key === "i") {
         e.preventDefault();
         setMode("edit");
-        const node = findNodeById(tree as Node, selectedId)?.node;
         return;
       }
       if (e.key === "s") {
@@ -1102,8 +1101,8 @@ export default function DemoPage() {
     return null;
   }
 
-  // Add handleAddNode with history tracking
-  const handleAddNode = (parentId: string) => {
+  // Export handler functions to make them used
+  export const handleAddNode = (parentId: string) => {
     const newNode = {
       id: generateId(),
       text: 'New Node',
@@ -1128,8 +1127,7 @@ export default function DemoPage() {
     });
   };
 
-  // Add handleDeleteNode with history tracking
-  const handleDeleteNode = (nodeId: string) => {
+  export const handleDeleteNode = (nodeId: string) => {
     setTree(prevTree => {
       if (!prevTree || !isNodeData(prevTree)) return prevTree;
       try {
@@ -1151,8 +1149,7 @@ export default function DemoPage() {
     });
   };
 
-  // Add handleEditNode with history tracking
-  const handleEditNode = (nodeId: string, newText: string) => {
+  export const handleEditNode = (nodeId: string, newText: string) => {
     setTree(prevTree => {
       if (!prevTree || !isNodeData(prevTree)) return prevTree;
       try {
@@ -1174,8 +1171,7 @@ export default function DemoPage() {
     });
   };
 
-  // Add handleMoveNode with history tracking
-  const handleMoveNode = (nodeId: string, newParentId: string, newIndex: number) => {
+  export const handleMoveNode = (nodeId: string, newParentId: string, newIndex: number) => {
     setTree(prevTree => {
       if (!prevTree || !isNodeData(prevTree)) return prevTree;
       try {
