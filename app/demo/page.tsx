@@ -1101,101 +1101,101 @@ export default function DemoPage() {
     return null;
   }
 
-  // Export handler functions to make them used
-  export const handleAddNode = (parentId: string) => {
-    const newNode = {
-      id: generateId(),
-      text: 'New Node',
-      children: []
-    };
+  // Remove 'export' from handler functions
+  // const handleAddNode = (parentId: string) => {
+  //   const newNode = {
+  //     id: generateId(),
+  //     text: 'New Node',
+  //     children: []
+  //   };
 
-    setTree(prevTree => {
-      if (!prevTree || !isNodeData(prevTree)) return prevTree;
-      try {
-        const newTree = addNode(prevTree, parentId, newNode);
-        historyManager.push({
-          type: 'add',
-          nodeId: newNode.id,
-          parentId,
-          data: newNode
-        });
-        return newTree;
-      } catch (error) {
-        console.error('Error during add node:', error);
-        return prevTree;
-      }
-    });
-  };
+  //   setTree(prevTree => {
+  //     if (!prevTree || !isNodeData(prevTree)) return prevTree;
+  //     try {
+  //       const newTree = addNode(prevTree, parentId, newNode);
+  //       historyManager.push({
+  //         type: 'add',
+  //         nodeId: newNode.id,
+  //         parentId,
+  //         data: newNode
+  //       });
+  //       return newTree;
+  //     } catch (error) {
+  //       console.error('Error during add node:', error);
+  //       return prevTree;
+  //     }
+  //   });
+  // };
 
-  export const handleDeleteNode = (nodeId: string) => {
-    setTree(prevTree => {
-      if (!prevTree || !isNodeData(prevTree)) return prevTree;
-      try {
-        const found = findNodeById(prevTree, nodeId);
-        if (!found || !found.parent) return prevTree;
+  // const handleDeleteNode = (nodeId: string) => {
+  //   setTree(prevTree => {
+  //     if (!prevTree || !isNodeData(prevTree)) return prevTree;
+  //     try {
+  //       const found = findNodeById(prevTree, nodeId);
+  //       if (!found || !found.parent) return prevTree;
 
-        const newTree = deleteNode(prevTree, nodeId);
-        historyManager.push({
-          type: 'delete',
-          nodeId,
-          parentId: found.parent.id,
-          data: found.node
-        });
-        return newTree;
-      } catch (error) {
-        console.error('Error during delete node:', error);
-        return prevTree;
-      }
-    });
-  };
+  //       const newTree = deleteNode(prevTree, nodeId);
+  //       historyManager.push({
+  //         type: 'delete',
+  //         nodeId,
+  //         parentId: found.parent.id,
+  //         data: found.node
+  //       });
+  //       return newTree;
+  //     } catch (error) {
+  //       console.error('Error during delete node:', error);
+  //       return prevTree;
+  //     }
+  //   });
+  // };
 
-  export const handleEditNode = (nodeId: string, newText: string) => {
-    setTree(prevTree => {
-      if (!prevTree || !isNodeData(prevTree)) return prevTree;
-      try {
-        const found = findNodeById(prevTree, nodeId);
-        if (!found) return prevTree;
+  // const handleEditNode = (nodeId: string, newText: string) => {
+  //   setTree(prevTree => {
+  //     if (!prevTree || !isNodeData(prevTree)) return prevTree;
+  //     try {
+  //       const found = findNodeById(prevTree, nodeId);
+  //       if (!found) return prevTree;
 
-        const newTree = editNode(prevTree, nodeId, newText);
-        historyManager.push({
-          type: 'edit',
-          nodeId,
-          oldData: { text: found.node.text },
-          newData: { text: newText }
-        });
-        return newTree;
-      } catch (error) {
-        console.error('Error during edit node:', error);
-        return prevTree;
-      }
-    });
-  };
+  //       const newTree = editNode(prevTree, nodeId, newText);
+  //       historyManager.push({
+  //         type: 'edit',
+  //         nodeId,
+  //         oldData: { text: found.node.text },
+  //         newData: { text: newText }
+  //       });
+  //       return newTree;
+  //     } catch (error) {
+  //       console.error('Error during edit node:', error);
+  //       return prevTree;
+  //     }
+  //   });
+  // };
 
-  export const handleMoveNode = (nodeId: string, newParentId: string, newIndex: number) => {
-    setTree(prevTree => {
-      if (!prevTree || !isNodeData(prevTree)) return prevTree;
-      try {
-        const found = findNodeById(prevTree, nodeId);
-        const newParent = findNodeById(prevTree, newParentId);
-        if (!found || !found.parent || !newParent) return prevTree;
+  // const handleMoveNode = (nodeId: string, newParentId: string, newIndex: number) => {
+  //   setTree(prevTree => {
+  //     if (!prevTree || !isNodeData(prevTree)) return prevTree;
+  //     try {
+  //       const found = findNodeById(prevTree, nodeId);
+  //       const newParent = findNodeById(prevTree, newParentId);
+  //       if (!found || !found.parent || !newParent) return prevTree;
 
-        const oldIndex = found.parent.children.findIndex(n => n.id === nodeId);
-        const newTree = moveNode(prevTree, nodeId, newParentId, newIndex);
-        historyManager.push({
-          type: 'move',
-          nodeId,
-          oldParentId: found.parent.id,
-          newParentId,
-          oldIndex,
-          newIndex
-        });
-        return newTree;
-      } catch (error) {
-        console.error('Error during move node:', error);
-        return prevTree;
-      }
-    });
-  };
+  //       const oldIndex = found.parent.children.findIndex(n => n.id === nodeId);
+  //       const newTree = moveNode(prevTree, nodeId, newParentId, newIndex);
+  //       historyManager.push({
+  //         type: 'move',
+  //         nodeId,
+  //         oldParentId: found.parent.id,
+  //         newParentId,
+  //         oldIndex,
+  //         newIndex
+  //       });
+  //       return newTree;
+  //     } catch (error) {
+  //       console.error('Error during move node:', error);
+  //       return prevTree;
+  //     }
+  //   });
+  // };
 
   // Add style change handler
   const handleStyleChange = useCallback((nodeId: string, newStyle: NodeData['style']) => {
